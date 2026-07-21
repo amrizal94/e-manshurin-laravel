@@ -62,6 +62,7 @@ fi
 cd "$APP_DIR/web"
 export NEXT_PUBLIC_API_URL="https://$DOMAIN/api"
 $NPM install
+$NODE lib/ear.check.mjs
 rm -rf .next
 $NPM run build
 
