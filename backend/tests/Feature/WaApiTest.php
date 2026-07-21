@@ -84,6 +84,21 @@ class WaApiTest extends TestCase
         $this->assertSame(0, Absensi::count());
     }
 
+    public function test_event_test_dari_tombol_dashboard_tidak_422(): void
+    {
+        Http::fake();
+
+        // Tombol "Test" di dashboard gateway kirim payload tanpa field 'from'
+        $this->kirimWebhook([
+            'event' => 'test',
+            'device_id' => 'device-1',
+            'message' => 'This is a test webhook from WA Gateway',
+            'timestamp' => now()->timestamp * 1000,
+        ])->assertOk();
+
+        Http::assertNothingSent();
+    }
+
     public function test_izin_tercatat_dan_balasan_dikirim_via_gateway(): void
     {
         Http::fake(['*/api/send' => Http::response(['success' => true])]);

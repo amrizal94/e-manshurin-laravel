@@ -22,12 +22,13 @@ class WaController extends Controller
     {
         $data = $request->validate([
             'event' => ['required', 'string'],
-            'from' => ['required', 'string'],
+            'from' => ['nullable', 'string'],
             'type' => ['nullable', 'string'],
             'message' => ['nullable', 'string'],
         ]);
 
-        if ($data['event'] !== 'message.received' || ($data['type'] ?? 'text') !== 'text') {
+        // event=test (tombol "Test" di dashboard gateway) tidak kirim 'from'
+        if ($data['event'] !== 'message.received' || ! $data['from'] || ($data['type'] ?? 'text') !== 'text') {
             return response()->json(['success' => true, 'message' => 'Diabaikan']);
         }
 
