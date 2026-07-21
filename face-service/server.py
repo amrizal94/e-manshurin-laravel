@@ -40,6 +40,14 @@ def load_model():
     print(f"[face-service] InsightFace {MODEL_NAME} loaded OK")
 
 
+@app.on_event("startup")
+def _startup():
+    # Wajib lewat startup event, bukan hanya __main__ guard di bawah —
+    # deploy production jalanin `uvicorn server:app` (import sebagai modul,
+    # __name__ != "__main__"), jadi load_model() harus nempel ke lifecycle FastAPI.
+    load_model()
+
+
 def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     rgb = pil_img.convert("RGB")
     return cv2.cvtColor(np.array(rgb), cv2.COLOR_RGB2BGR)
@@ -115,5 +123,4 @@ async def extract(image: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
 
-    load_model()
     uvicorn.run(app, host="127.0.0.1", port=5000, log_level="info")
