@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -53,9 +54,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <aside className="flex w-56 flex-col border-r border-gray-200 bg-white">
-        <div className="border-b border-gray-200 p-4">
-          <h1 className="text-lg font-bold text-emerald-700">E-Manshurin</h1>
-          <p className="truncate text-xs text-gray-500">{user?.name}</p>
+        <div className="flex items-center gap-2 border-b border-gray-200 p-4">
+          <Image src="/logo.png" alt="" width={32} height={32} />
+          <div>
+            <h1 className="text-lg font-bold text-emerald-700">E-Manshurin</h1>
+            <p className="truncate text-xs text-gray-500">{user?.name}</p>
+          </div>
         </div>
         <nav className="flex-1 space-y-1 p-2">
           {visibleNav.map((item) => (

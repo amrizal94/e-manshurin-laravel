@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -36,6 +37,13 @@ export default function LoginPage() {
         onSubmit={submit}
         className="w-full max-w-sm space-y-4 rounded-xl bg-white p-8 shadow"
       >
+        <Image
+          src="/logo.png"
+          alt="E-Manshurin"
+          width={64}
+          height={64}
+          className="mx-auto"
+        />
         <h1 className="text-center text-2xl font-bold text-gray-900">
           E-Manshurin
         </h1>
