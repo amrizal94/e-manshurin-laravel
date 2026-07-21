@@ -17,7 +17,7 @@ DB_PASSWORD="${DB_PASSWORD:-GANTI_PASSWORD_KUAT}"
 WA_DEVICE_API_KEY="${WA_DEVICE_API_KEY:-}"
 
 APP_DIR="/www/wwwroot/emanshurin"
-REPO_URL="${REPO_URL:-git@github.com:GANTI/e-manshurin.git}"
+REPO_URL="${REPO_URL:-git@github.com:amrizal94/e-manshurin-laravel.git}"
 PHP="/www/server/php/83/bin/php"
 PHP_FPM_SOCK="/tmp/php-cgi-83.sock"
 NODE_DIR="$(dirname "$(find /www/server/nodejs -maxdepth 2 -name node -type f 2>/dev/null | sort -V | tail -1)")"
