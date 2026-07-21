@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\KegiatanController;
 use App\Http\Controllers\Api\KelompokController;
 use App\Http\Controllers\Api\RekapController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WaController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/jamaahs/{jamaah}/photos', [JamaahController::class, 'storePhoto']);
         Route::delete('/jamaahs/{jamaah}/photos/{photo}', [JamaahController::class, 'destroyPhoto']);
         Route::post('/jamaahs/{jamaah}/face-enroll', [FaceController::class, 'enroll']);
+        Route::apiResource('users', UserController::class)->except(['show']);
     });
 
     // Kegiatan + absensi + rekap: semua role

@@ -20,3 +20,9 @@ export const STATUS_ABSENSI: Record<string, string> = {
   izin: "Izin",
   alpha: "Alpha",
 };
+
+export const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  absensi: "Absensi",
+};

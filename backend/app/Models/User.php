@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -46,5 +47,26 @@ class User extends Authenticatable
     public function kelompok(): BelongsTo
     {
         return $this->belongsTo(Kelompok::class);
+    }
+
+    /**
+     * Batasi query ke user dalam wilayah struktur milik $actor (super admin lihat semua).
+     */
+    public function scopeVisibleTo(Builder $query, self $actor): Builder
+    {
+        if ($actor->kelompok_id) {
+            return $query->where('kelompok_id', $actor->kelompok_id);
+        }
+        if ($actor->desa_id) {
+            return $query->where(fn ($q) => $q->where('desa_id', $actor->desa_id)
+                ->orWhereHas('kelompok', fn ($k) => $k->where('desa_id', $actor->desa_id)));
+        }
+        if ($actor->daerah_id) {
+            return $query->where(fn ($q) => $q->where('daerah_id', $actor->daerah_id)
+                ->orWhereHas('desa', fn ($d) => $d->where('daerah_id', $actor->daerah_id))
+                ->orWhereHas('kelompok.desa', fn ($d) => $d->where('daerah_id', $actor->daerah_id)));
+        }
+
+        return $query;
     }
 }
