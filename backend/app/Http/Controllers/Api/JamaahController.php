@@ -1,0 +1,121 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Jamaah;
+use App\Models\JamaahFaceDescriptor;
+use App\Models\JamaahPhoto;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+class JamaahController extends Controller
+{
+    private function rules(): array
+    {
+        return [
+            'kelompok_id' => ['required', 'exists:kelompoks,id'],
+            'nama_lengkap' => ['required', 'string', 'max:255'],
+            'nama_panggilan' => ['nullable', 'string', 'max:255'],
+            'jenis_kelamin' => ['required', 'in:L,P'],
+            'tempat_lahir' => ['nullable', 'string', 'max:255'],
+            'tanggal_lahir' => ['nullable', 'date'],
+            'alamat' => ['nullable', 'string'],
+            'no_hp' => ['nullable', 'string', 'max:30'],
+            'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah'],
+            'pekerjaan' => ['nullable', 'string', 'max:255'],
+            'status_mubaligh' => ['boolean'],
+            'sudah_menikah' => ['boolean'],
+            'status_kk' => ['nullable', 'in:kepala_keluarga,suami,istri,anak'],
+            'kepala_keluarga_id' => ['nullable', 'exists:jamaahs,id'],
+            'aktif' => ['boolean'],
+            'keterangan_tidak_aktif' => ['nullable', 'string'],
+        ];
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $query = Jamaah::visibleTo($request->user())
+            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama,daerah_id')
+            ->withCount('photos')
+            ->orderBy('nama_lengkap');
+
+        if ($request->filled('kelompok_id')) {
+            $query->where('kelompok_id', $request->integer('kelompok_id'));
+        }
+        if ($request->filled('kategori_usia')) {
+            $query->where('kategori_usia', $request->string('kategori_usia'));
+        }
+        if ($request->filled('aktif')) {
+            $query->where('aktif', $request->boolean('aktif'));
+        }
+        if ($request->filled('search')) {
+            $query->where('nama_lengkap', 'like', '%' . $request->string('search') . '%');
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OK',
+            'data' => $query->paginate($request->integer('per_page', 25)),
+        ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $jamaah = Jamaah::create($request->validate($this->rules()));
+
+        return response()->json(['success' => true, 'message' => 'Jamaah dibuat', 'data' => $jamaah], 201);
+    }
+
+    public function show(Request $request, Jamaah $jamaah): JsonResponse
+    {
+        abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OK',
+            'data' => $jamaah->load('kelompok.desa.daerah', 'kepalaKeluarga:id,nama_lengkap', 'photos'),
+        ]);
+    }
+
+    public function update(Request $request, Jamaah $jamaah): JsonResponse
+    {
+        abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
+        $jamaah->update($request->validate($this->rules()));
+
+        return response()->json(['success' => true, 'message' => 'Jamaah diperbarui', 'data' => $jamaah]);
+    }
+
+    public function destroy(Request $request, Jamaah $jamaah): JsonResponse
+    {
+        abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
+        Storage::disk('public')->delete($jamaah->photos()->pluck('path')->all());
+        $jamaah->delete();
+
+        return response()->json(['success' => true, 'message' => 'Jamaah dihapus', 'data' => null]);
+    }
+
+    public function storePhoto(Request $request, Jamaah $jamaah): JsonResponse
+    {
+        abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
+        $request->validate(['photo' => ['required', 'image', 'max:5120']]);
+
+        $path = $request->file('photo')->store("jamaah/{$jamaah->id}", 'public');
+        $photo = $jamaah->photos()->create(['path' => $path]);
+
+        return response()->json(['success' => true, 'message' => 'Foto diunggah', 'data' => $photo], 201);
+    }
+
+    public function destroyPhoto(Request $request, Jamaah $jamaah, JamaahPhoto $photo): JsonResponse
+    {
+        abort_unless($photo->jamaah_id === $jamaah->id, 404);
+        abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
+
+        Storage::disk('public')->delete($photo->path);
+        JamaahFaceDescriptor::where('jamaah_photo_id', $photo->id)->delete();
+        $photo->delete();
+
+        return response()->json(['success' => true, 'message' => 'Foto dihapus', 'data' => null]);
+    }
+}
