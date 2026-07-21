@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Light-only by design: every page uses hardcoded bg-white/gray Tailwind
+   classes with no dark: variants, so these must never swap by OS theme
+   or text ends up pale on white cards. */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -10,13 +13,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
