@@ -18,9 +18,10 @@ WA_DEVICE_API_KEY="${WA_DEVICE_API_KEY:-}"
 
 APP_DIR="/www/wwwroot/emanshurin"
 REPO_URL="${REPO_URL:-https://github.com/amrizal94/e-manshurin-laravel.git}"
-PHP="/www/server/php/83/bin/php"
-PHP_FPM_SOCK="/tmp/php-cgi-83.sock"
+PHP="/usr/bin/php8.3"
+PHP_FPM_SOCK="/run/php/php8.3-fpm.sock"
 NODE_DIR="$(dirname "$(find /www/server/nodejs -maxdepth 2 -name node -type f 2>/dev/null | sort -V | tail -1)")"
+[ -z "$NODE_DIR" ] || [ "$NODE_DIR" = "." ] && NODE_DIR="/usr/bin"
 NODE="$NODE_DIR/node"
 NPM="$NODE_DIR/npm"
 WEB_PORT=3005
@@ -49,7 +50,7 @@ for p in $WEB_PORT $FACE_PORT; do
 done
 ok "Port $WEB_PORT (web) & $FACE_PORT (face-service) bebas"
 
-[ ! -f "$PHP" ] && error "PHP 8.3 tidak ditemukan di $PHP. Install dulu via aaPanel App Store (sama seperti facehrm)."
+[ ! -x "$PHP" ] && error "PHP 8.3 tidak ditemukan di $PHP."
 ok "PHP: $($PHP --version | head -1)"
 [ ! -f "$NODE" ] && error "Node.js tidak ditemukan di /www/server/nodejs — install dulu via aaPanel."
 ok "Node.js: $($NODE --version)"
@@ -185,7 +186,7 @@ ok "Nginx config updated & reloaded"
 
 # ── PM2: face-service + web ───────────────────────────────────────
 info "Start PM2 services..."
-/etc/init.d/php-fpm-83 restart 2>/dev/null || systemctl restart php8.3-fpm 2>/dev/null || true
+systemctl restart php8.3-fpm 2>/dev/null || /etc/init.d/php-fpm-83 restart 2>/dev/null || true
 
 pm2 delete emanshurin-face 2>/dev/null || true
 pm2 start "$APP_DIR/face-service/venv/bin/uvicorn" --name emanshurin-face --interpreter none \

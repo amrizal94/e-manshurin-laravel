@@ -11,10 +11,11 @@ DOMAIN="emanshurin.kreasikaryaarjuna.co.id"
 WEB_PORT=3005
 FACE_PORT=5001
 
-PHP="/www/server/php/83/bin/php"
+PHP="/usr/bin/php8.3"
 [ ! -x "$PHP" ] && PHP="$(command -v php8.3 2>/dev/null || command -v php)"
 
 NODE_DIR="$(dirname "$(find /www/server/nodejs -maxdepth 2 -name node -type f 2>/dev/null | sort -V | tail -1)")"
+[ -z "$NODE_DIR" ] || [ "$NODE_DIR" = "." ] && NODE_DIR="/usr/bin"
 NODE="$NODE_DIR/node"
 NPM="$NODE_DIR/npm"
 export PATH="$NODE_DIR:$PATH"
@@ -41,7 +42,7 @@ $PHP artisan config:cache
 $PHP artisan route:cache
 chown -R www:www "$APP_DIR/backend/storage/" 2>/dev/null || true
 chmod -R 775 "$APP_DIR/backend/storage/"
-/etc/init.d/php-fpm-83 reload 2>/dev/null || systemctl reload php8.3-fpm 2>/dev/null || true
+systemctl reload php8.3-fpm 2>/dev/null || /etc/init.d/php-fpm-83 reload 2>/dev/null || true
 
 # ── 3. Face service deps ──────────────────────────────────────────
 echo "[3/6] Face-service deps..."
