@@ -153,7 +153,9 @@ export default function StrukturPage() {
           <ul className="divide-y divide-gray-100">
             {desas.map((d) => (
               <li key={d.id} className={baris}>
-                <span>{d.nama} <span className="text-gray-400">({d.kelompoks_count} kelompok)</span></span>
+                <span>
+                  {d.nama} <span className="text-gray-400">({d.daerah?.nama} · {d.kelompoks_count} kelompok)</span>
+                </span>
                 <span className="flex gap-2">
                   <button
                     className={aksi}
