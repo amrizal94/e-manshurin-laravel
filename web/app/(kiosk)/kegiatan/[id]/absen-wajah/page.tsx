@@ -106,27 +106,31 @@ export default function AbsenWajahPage() {
       const video = videoRef.current;
 
       if (video && !prosesRef.current) {
-        const hasil = await faceapi
-          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks(true);
+        try {
+          const hasil = await faceapi
+            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks(true);
 
-        if (!hasil) {
-          setEarDebug(null);
-          setLiveness("waiting");
-        } else {
-          const nilaiEar = (eyeAspectRatio(hasil.landmarks.getLeftEye()) + eyeAspectRatio(hasil.landmarks.getRightEye())) / 2;
-          setEarDebug(nilaiEar);
+          if (!hasil) {
+            setEarDebug(null);
+            setLiveness("waiting");
+          } else {
+            const nilaiEar = (eyeAspectRatio(hasil.landmarks.getLeftEye()) + eyeAspectRatio(hasil.landmarks.getRightEye())) / 2;
+            setEarDebug(nilaiEar);
 
-          setLiveness((state) => {
-            if (state === "waiting" && nilaiEar > EAR_OPEN) return "eyesOpen";
-            if (state === "eyesOpen" && nilaiEar < EAR_CLOSED) return "blinking";
-            if (state === "blinking" && nilaiEar > EAR_OPEN) return "passed";
-            return state;
-          });
+            setLiveness((state) => {
+              if (state === "waiting" && nilaiEar > EAR_OPEN) return "eyesOpen";
+              if (state === "eyesOpen" && nilaiEar < EAR_CLOSED) return "blinking";
+              if (state === "blinking" && nilaiEar > EAR_OPEN) return "passed";
+              return state;
+            });
+          }
+        } catch {
+          // deteksi transien gagal (mis. WebGL glitch) — abaikan, coba lagi loop berikutnya
         }
       }
 
-      setTimeout(loop, 150);
+      if (!batal) setTimeout(loop, 150);
     }
     loop();
 
