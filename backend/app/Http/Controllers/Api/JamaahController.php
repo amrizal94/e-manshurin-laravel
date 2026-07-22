@@ -23,7 +23,7 @@ class JamaahController extends Controller
             'tanggal_lahir' => ['nullable', 'date'],
             'alamat' => ['nullable', 'string'],
             'no_hp' => ['nullable', 'string', 'max:30'],
-            'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah'],
+            'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman'],
             'pekerjaan' => ['nullable', 'string', 'max:255'],
             'status_mubaligh' => ['boolean'],
             'sudah_menikah' => ['boolean'],

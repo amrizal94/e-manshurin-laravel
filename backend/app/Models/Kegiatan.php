@@ -25,9 +25,14 @@ class Kegiatan extends Model
         return LogOptions::defaults()->logOnlyDirty()->logExcept(['updated_at']);
     }
 
-    /** Jenis pengajian -> kategori usia jamaah yang boleh absen. */
+    /**
+     * Jenis pengajian -> kategori usia jamaah yang boleh absen.
+     * "Menikah" bukan kategori_usia tersendiri — status nikah murni dari flag
+     * sudah_menikah, supaya gak ada dua sumber kebenaran yang bisa beda (lihat pesertaQuery).
+     * Usman eksplisit "belum menikah" per definisi jenis pengajian ini.
+     */
     public const KATEGORI_MAP = [
-        'umum' => ['praremaja', 'remaja', 'usman', 'menikah'],
+        'umum' => ['praremaja', 'remaja', 'usman'],
         'caberawit' => ['paud_tk', 'caberawit'],
         'praremaja' => ['praremaja'],
         'remaja' => ['remaja'],
@@ -67,8 +72,17 @@ class Kegiatan extends Model
     /** Jamaah aktif yang berhak absen di kegiatan ini (sesuai target struktur + kategori usia). */
     public function pesertaQuery(): Builder
     {
-        $query = Jamaah::where('aktif', true)
-            ->whereIn('kategori_usia', self::KATEGORI_MAP[$this->jenis_pengajian]);
+        $query = Jamaah::where('aktif', true)->where(function (Builder $q) {
+            $q->whereIn('kategori_usia', self::KATEGORI_MAP[$this->jenis_pengajian]);
+
+            // Usman berarti "belum menikah" — begitu menikah, keluar dari usman
+            // tapi tetap ikut pengajian Umum (bukan lewat kategori_usia baru, cukup flag).
+            if ($this->jenis_pengajian === 'usman') {
+                $q->where('sudah_menikah', false);
+            } elseif ($this->jenis_pengajian === 'umum') {
+                $q->orWhere('sudah_menikah', true);
+            }
+        });
 
         if ($this->kelompok_id) {
             return $query->where('kelompok_id', $this->kelompok_id);

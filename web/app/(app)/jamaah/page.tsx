@@ -147,7 +147,10 @@ export default function JamaahPage() {
                 <td className="p-3 font-medium text-gray-900">{j.nama_lengkap}</td>
                 <td className="p-3">{j.jenis_kelamin}</td>
                 <td className="p-3">{j.usia ?? "-"}</td>
-                <td className="p-3">{KATEGORI_USIA[j.kategori_usia]}</td>
+                <td className="p-3">
+                  {KATEGORI_USIA[j.kategori_usia]}
+                  {j.sudah_menikah && <span className="ml-1 text-xs text-gray-400">(Menikah)</span>}
+                </td>
                 <td className="p-3">{j.kelompok?.nama}</td>
                 <td className="p-3">{j.photos_count ?? 0}</td>
                 <td className="p-3">

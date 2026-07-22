@@ -64,7 +64,7 @@ class JamaahApiTest extends TestCase
             'kelompok_id' => $this->kelompok->id,
             'nama_lengkap' => 'Orang Kelompok 1',
             'jenis_kelamin' => 'L',
-            'kategori_usia' => 'menikah',
+            'kategori_usia' => 'usman',
         ]);
 
         $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);

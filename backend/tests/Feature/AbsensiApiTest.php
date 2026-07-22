@@ -94,6 +94,39 @@ class AbsensiApiTest extends TestCase
         $this->assertSame(['Remaja Satu'], $names);
     }
 
+    public function test_usman_menikah_keluar_dari_peserta_usman_tapi_masuk_umum(): void
+    {
+        $usmanLajang = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Usman Lajang',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+            'sudah_menikah' => false,
+        ]);
+        $usmanMenikah = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Usman Menikah',
+            'jenis_kelamin' => 'P',
+            'kategori_usia' => 'usman',
+            'sudah_menikah' => true,
+        ]);
+
+        $kegiatanUsman = $this->buatKegiatan('usman');
+        $namesUsman = array_column(
+            $this->actingAs($this->petugas)->getJson("/api/kegiatans/{$kegiatanUsman->id}/peserta")->json('data'),
+            'nama_lengkap'
+        );
+        $this->assertSame(['Usman Lajang'], $namesUsman);
+
+        $kegiatanUmum = $this->buatKegiatan('umum');
+        $namesUmum = array_column(
+            $this->actingAs($this->petugas)->getJson("/api/kegiatans/{$kegiatanUmum->id}/peserta")->json('data'),
+            'nama_lengkap'
+        );
+        $this->assertContains('Usman Lajang', $namesUmum);
+        $this->assertContains('Usman Menikah', $namesUmum);
+    }
+
     public function test_absensi_jamaah_di_luar_kategori_ditolak(): void
     {
         $kegiatan = $this->buatKegiatan('remaja');
