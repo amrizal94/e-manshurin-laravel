@@ -109,6 +109,18 @@ export default function StrukturPage() {
 
   const JUDUL: Record<Level, string> = { daerah: "Daerah", desa: "Desa", kelompok: "Kelompok" };
 
+  // Desa & Kelompok dikelompokkan per induk (Daerah / Desa) biar gak campur
+  // urut abjad lintas induk — daerahs & desas sendiri sudah terurut abjad dari API.
+  const desaGroups = daerahs
+    .map((da) => ({ induk: da, items: desas.filter((d) => d.daerah_id === da.id) }))
+    .filter((g) => g.items.length > 0);
+
+  const kelompokGroups = desas
+    .map((de) => ({ induk: de, items: kelompoks.filter((k) => k.desa_id === de.id) }))
+    .filter((g) => g.items.length > 0);
+
+  const grupHeader = "bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-500";
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-gray-900">Struktur Organisasi</h2>
@@ -150,31 +162,37 @@ export default function StrukturPage() {
             <h3 className="text-sm font-semibold">Desa</h3>
             <button onClick={() => bukaTambah("desa")} className={btnTambah}>+ Tambah</button>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {desas.map((d) => (
-              <li key={d.id} className={baris}>
-                <span>
-                  {d.nama} <span className="text-gray-400">({d.daerah?.nama} · {d.kelompoks_count} kelompok)</span>
-                </span>
-                <span className="flex gap-2">
-                  <button
-                    className={aksi}
-                    onClick={() => {
-                      const data = edit(d.nama);
-                      if (data) run(() => api(`/desas/${d.id}`, { method: "PUT", body: JSON.stringify({ ...data, daerah_id: d.daerah_id }) }));
-                    }}
-                  >Edit</button>
-                  <button
-                    className="text-xs text-red-400 hover:text-red-700"
-                    onClick={() => {
-                      if (confirm(`Hapus desa "${d.nama}" beserta seluruh isinya?`))
-                        run(() => api(`/desas/${d.id}`, { method: "DELETE" }));
-                    }}
-                  >Hapus</button>
-                </span>
-              </li>
+          <div className="divide-y divide-gray-100">
+            {desaGroups.map((g) => (
+              <div key={g.induk.id}>
+                <p className={grupHeader}>{g.induk.nama}</p>
+                <ul className="divide-y divide-gray-100">
+                  {g.items.map((d) => (
+                    <li key={d.id} className={baris}>
+                      <span>{d.nama} <span className="text-gray-400">({d.kelompoks_count} kelompok)</span></span>
+                      <span className="flex gap-2">
+                        <button
+                          className={aksi}
+                          onClick={() => {
+                            const data = edit(d.nama);
+                            if (data) run(() => api(`/desas/${d.id}`, { method: "PUT", body: JSON.stringify({ ...data, daerah_id: d.daerah_id }) }));
+                          }}
+                        >Edit</button>
+                        <button
+                          className="text-xs text-red-400 hover:text-red-700"
+                          onClick={() => {
+                            if (confirm(`Hapus desa "${d.nama}" beserta seluruh isinya?`))
+                              run(() => api(`/desas/${d.id}`, { method: "DELETE" }));
+                          }}
+                        >Hapus</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+            {desas.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+          </div>
         </section>
 
         <section className={kolom}>
@@ -182,29 +200,37 @@ export default function StrukturPage() {
             <h3 className="text-sm font-semibold">Kelompok</h3>
             <button onClick={() => bukaTambah("kelompok")} className={btnTambah}>+ Tambah</button>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {kelompoks.map((k) => (
-              <li key={k.id} className={baris}>
-                <span>{k.nama} <span className="text-gray-400">({k.desa?.nama})</span></span>
-                <span className="flex gap-2">
-                  <button
-                    className={aksi}
-                    onClick={() => {
-                      const data = edit(k.nama);
-                      if (data) run(() => api(`/kelompoks/${k.id}`, { method: "PUT", body: JSON.stringify({ ...data, desa_id: k.desa_id }) }));
-                    }}
-                  >Edit</button>
-                  <button
-                    className="text-xs text-red-400 hover:text-red-700"
-                    onClick={() => {
-                      if (confirm(`Hapus kelompok "${k.nama}"?`))
-                        run(() => api(`/kelompoks/${k.id}`, { method: "DELETE" }));
-                    }}
-                  >Hapus</button>
-                </span>
-              </li>
+          <div className="divide-y divide-gray-100">
+            {kelompokGroups.map((g) => (
+              <div key={g.induk.id}>
+                <p className={grupHeader}>{g.induk.nama}</p>
+                <ul className="divide-y divide-gray-100">
+                  {g.items.map((k) => (
+                    <li key={k.id} className={baris}>
+                      <span>{k.nama}</span>
+                      <span className="flex gap-2">
+                        <button
+                          className={aksi}
+                          onClick={() => {
+                            const data = edit(k.nama);
+                            if (data) run(() => api(`/kelompoks/${k.id}`, { method: "PUT", body: JSON.stringify({ ...data, desa_id: k.desa_id }) }));
+                          }}
+                        >Edit</button>
+                        <button
+                          className="text-xs text-red-400 hover:text-red-700"
+                          onClick={() => {
+                            if (confirm(`Hapus kelompok "${k.nama}"?`))
+                              run(() => api(`/kelompoks/${k.id}`, { method: "DELETE" }));
+                          }}
+                        >Hapus</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+            {kelompoks.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+          </div>
         </section>
       </div>
 
