@@ -17,7 +17,7 @@ interface Jamaah {
   alamat: string | null;
   no_hp: string | null;
   kelompok_id: number;
-  kelompok?: { nama: string };
+  kelompok?: { nama: string; desa?: { nama: string } };
   kategori_usia: string;
   pekerjaan: string | null;
   status_mubaligh: boolean;
@@ -151,7 +151,10 @@ export default function JamaahPage() {
                   {KATEGORI_USIA[j.kategori_usia]}
                   {j.sudah_menikah && <span className="ml-1 text-xs text-gray-400">(Menikah)</span>}
                 </td>
-                <td className="p-3">{j.kelompok?.nama}</td>
+                <td className="p-3">
+                  {j.kelompok?.nama}
+                  {j.kelompok?.desa && <span className="text-gray-400"> — {j.kelompok.desa.nama}</span>}
+                </td>
                 <td className="p-3">{j.photos_count ?? 0}</td>
                 <td className="p-3">
                   {j.aktif ? (
