@@ -26,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<StoredUser | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -36,6 +37,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
   }, [router]);
+
+  useEffect(() => setNavOpen(false), [pathname]);
 
   async function logout() {
     if (!confirm("Yakin ingin keluar?")) return;
@@ -56,7 +59,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <aside className="flex w-56 flex-col border-r border-gray-200 bg-white">
+      {navOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/30 lg:hidden"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
+          navOpen ? "translate-x-0" : ""
+        }`}
+      >
         <div className="flex items-center gap-2 border-b border-gray-200 p-4">
           <Image src="/logo.png" alt="" width={32} height={32} />
           <div>
@@ -86,7 +100,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           Keluar
         </button>
       </aside>
-      <main className="flex-1 overflow-x-auto p-6">{children}</main>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white p-4 lg:hidden">
+          <button
+            onClick={() => setNavOpen(true)}
+            aria-label="Buka menu"
+            className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <Image src="/logo.png" alt="" width={28} height={28} />
+          <h1 className="text-base font-bold text-emerald-700">E-Manshurin</h1>
+        </div>
+
+        <main className="flex-1 overflow-x-auto p-4 sm:p-6">{children}</main>
+      </div>
     </div>
   );
 }
