@@ -33,6 +33,8 @@ export default function AbsenWajahPage() {
   const [modelSiap, setModelSiap] = useState(false);
   const [liveness, setLiveness] = useState<LivenessState>("waiting");
   const [earDebug, setEarDebug] = useState<number | null>(null);
+  const [debugMsg, setDebugMsg] = useState("belum mulai");
+  const [tickCount, setTickCount] = useState(0);
   const prosesRef = useRef(false);
 
   useEffect(() => {
@@ -106,17 +108,25 @@ export default function AbsenWajahPage() {
       const video = videoRef.current;
 
       if (video && !prosesRef.current) {
+        setTickCount((n) => n + 1);
         try {
-          const hasil = await faceapi
+          const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2000));
+          const deteksi = faceapi
             .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
             .withFaceLandmarks(true);
+          const hasil = await Promise.race([deteksi, timeout]);
 
-          if (!hasil) {
+          if (hasil === "timeout") {
+            setDebugMsg("timeout (>2s, kemungkinan backend tf.js hang)");
+            setEarDebug(null);
+          } else if (!hasil) {
+            setDebugMsg("wajah tidak terdeteksi");
             setEarDebug(null);
             setLiveness("waiting");
           } else {
             const nilaiEar = (eyeAspectRatio(hasil.landmarks.getLeftEye()) + eyeAspectRatio(hasil.landmarks.getRightEye())) / 2;
             setEarDebug(nilaiEar);
+            setDebugMsg("wajah terdeteksi");
 
             setLiveness((state) => {
               if (state === "waiting" && nilaiEar > EAR_OPEN) return "eyesOpen";
@@ -125,8 +135,8 @@ export default function AbsenWajahPage() {
               return state;
             });
           }
-        } catch {
-          // deteksi transien gagal (mis. WebGL glitch) — abaikan, coba lagi loop berikutnya
+        } catch (err) {
+          setDebugMsg(`error: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 
@@ -168,7 +178,9 @@ export default function AbsenWajahPage() {
         />
         {/* ponytail: debug readout sementara buat kalibrasi threshold EAR, hapus setelah nilai fix ditentukan */}
         {modelSiap && (
-          <p className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-yellow-300">
+          <p className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs leading-relaxed text-yellow-300">
+            tick: {tickCount} | {debugMsg}
+            <br />
             EAR: {earDebug !== null ? earDebug.toFixed(3) : "-"} (open&gt;{EAR_OPEN} closed&lt;{EAR_CLOSED})
           </p>
         )}
