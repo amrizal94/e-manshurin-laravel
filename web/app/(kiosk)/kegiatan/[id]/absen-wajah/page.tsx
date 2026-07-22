@@ -134,60 +134,76 @@ export default function AbsenWajahPage() {
     if (liveness === "passed") scan();
   }, [liveness, scan]);
 
+  const terakhir = riwayat[0];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Absen Wajah</h2>
-        <Link href={`/kegiatan/${id}`} className="text-sm text-emerald-600 hover:text-emerald-800">
-          ← Kembali ke daftar peserta
-        </Link>
+    <div className="relative flex min-h-screen flex-col items-center gap-4 p-4 text-white sm:gap-6 sm:p-8">
+      <Link
+        href={`/kegiatan/${id}`}
+        className="absolute left-4 top-4 text-xs text-gray-500 hover:text-gray-300 sm:text-sm"
+      >
+        ← Kembali ke daftar peserta
+      </Link>
+
+      <h1 className="mt-8 text-xl font-bold sm:mt-0 sm:text-3xl">Absen Wajah</h1>
+
+      {error && (
+        <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
+      )}
+
+      <div className="relative w-full max-w-2xl">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="aspect-[4/3] w-full rounded-2xl border-4 border-gray-800 bg-black object-cover"
+        />
+        {siap && (
+          <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 px-4 py-3 text-center sm:py-5">
+            <p className="text-base font-semibold sm:text-2xl">
+              {modelSiap ? LABEL_LIVENESS[liveness] : "Memuat model deteksi wajah..."}
+            </p>
+          </div>
+        )}
       </div>
 
-      {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+      {terakhir && (
+        <div
+          className={`w-full max-w-2xl rounded-xl px-4 py-3 text-center text-sm font-medium sm:text-base ${
+            terakhir.ok ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"
+          }`}
+        >
+          {terakhir.ok ? `✓ ${terakhir.nama} — ${terakhir.pesan}` : `✗ ${terakhir.pesan}`}
+          <span className="ml-2 text-xs text-gray-500">{terakhir.waktu}</span>
+        </div>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-3">
-          <div className="relative">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full rounded-xl border border-gray-200 bg-black"
-            />
-            {siap && (
-              <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white">
-                {modelSiap ? LABEL_LIVENESS[liveness] : "Memuat model deteksi wajah..."}
+      <button
+        onClick={scan}
+        disabled={!siap || proses}
+        className="rounded-xl border border-gray-700 px-6 py-3 text-xs font-medium text-gray-400 hover:bg-gray-900 disabled:opacity-50 sm:text-sm"
+      >
+        {proses ? "Memproses..." : "Scan manual (tanpa verifikasi kedip)"}
+      </button>
+
+      <div className="w-full max-w-2xl flex-1">
+        <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">Riwayat</p>
+        <ul className="max-h-64 divide-y divide-gray-800 overflow-y-auto rounded-xl border border-gray-800">
+          {riwayat.slice(1).map((h, i) => (
+            <li key={i} className="flex items-center justify-between p-3 text-sm">
+              <span className={h.ok ? "text-emerald-400" : "text-red-400"}>
+                {h.ok ? `✓ ${h.nama}` : `✗ ${h.pesan}`}
               </span>
-            )}
-          </div>
-          <button
-            onClick={scan}
-            disabled={!siap || proses}
-            className="w-full rounded-lg border border-gray-300 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {proses ? "Memproses..." : "Scan manual (tanpa verifikasi kedip)"}
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <h3 className="border-b border-gray-200 p-3 text-sm font-semibold">Riwayat Scan</h3>
-          <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto">
-            {riwayat.map((h, i) => (
-              <li key={i} className="flex items-center justify-between p-3 text-sm">
-                <span className={h.ok ? "text-emerald-700" : "text-red-600"}>
-                  {h.ok ? `✓ ${h.nama}` : `✗ ${h.pesan}`}
-                </span>
-                <span className="text-xs text-gray-400">{h.waktu}</span>
-              </li>
-            ))}
-            {riwayat.length === 0 && (
-              <li className="p-6 text-center text-sm text-gray-400">
-                Arahkan wajah ke kamera dan kedipkan mata untuk absen otomatis
-              </li>
-            )}
-          </ul>
-        </div>
+              <span className="text-xs text-gray-500">{h.waktu}</span>
+            </li>
+          ))}
+          {riwayat.length <= 1 && (
+            <li className="p-6 text-center text-sm text-gray-600">
+              Arahkan wajah ke kamera dan kedipkan mata untuk absen otomatis
+            </li>
+          )}
+        </ul>
       </div>
     </div>
   );
