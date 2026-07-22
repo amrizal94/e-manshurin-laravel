@@ -32,6 +32,7 @@ export default function AbsenWajahPage() {
   const [error, setError] = useState("");
   const [modelSiap, setModelSiap] = useState(false);
   const [liveness, setLiveness] = useState<LivenessState>("waiting");
+  const [earDebug, setEarDebug] = useState<number | null>(null);
   const prosesRef = useRef(false);
 
   useEffect(() => {
@@ -110,9 +111,11 @@ export default function AbsenWajahPage() {
           .withFaceLandmarks(true);
 
         if (!hasil) {
+          setEarDebug(null);
           setLiveness("waiting");
         } else {
           const nilaiEar = (eyeAspectRatio(hasil.landmarks.getLeftEye()) + eyeAspectRatio(hasil.landmarks.getRightEye())) / 2;
+          setEarDebug(nilaiEar);
 
           setLiveness((state) => {
             if (state === "waiting" && nilaiEar > EAR_OPEN) return "eyesOpen";
@@ -159,6 +162,12 @@ export default function AbsenWajahPage() {
           muted
           className="aspect-[4/3] w-full rounded-2xl border-4 border-gray-800 bg-black object-cover"
         />
+        {/* ponytail: debug readout sementara buat kalibrasi threshold EAR, hapus setelah nilai fix ditentukan */}
+        {modelSiap && (
+          <p className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs text-yellow-300">
+            EAR: {earDebug !== null ? earDebug.toFixed(3) : "-"} (open&gt;{EAR_OPEN} closed&lt;{EAR_CLOSED})
+          </p>
+        )}
         {siap && (
           <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 px-4 py-3 text-center sm:py-5">
             <p className="text-base font-semibold sm:text-2xl">
