@@ -19,6 +19,7 @@ const NAV = [
   { href: "/rekap", label: "Rekapitulasi" },
   { href: "/pengguna", label: "Pengguna", roles: ["super_admin", "admin"] },
   { href: "/pengaturan", label: "Pengaturan", roles: ["super_admin", "admin"] },
+  { href: "/activity-log", label: "Log Aktivitas", roles: ["super_admin"] },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

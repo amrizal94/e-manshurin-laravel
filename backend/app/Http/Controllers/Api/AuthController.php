@@ -20,8 +20,12 @@ class AuthController extends Controller
         $user = User::where('email', $data['email'])->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
+            activity()->withProperties(['email' => $data['email']])->log('Percobaan login gagal');
+
             return response()->json(['success' => false, 'message' => 'Email atau password salah', 'data' => null], 401);
         }
+
+        activity()->causedBy($user)->log('Login');
 
         return response()->json([
             'success' => true,
@@ -44,6 +48,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        activity()->causedBy($request->user())->log('Logout');
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['success' => true, 'message' => 'Logout berhasil', 'data' => null]);

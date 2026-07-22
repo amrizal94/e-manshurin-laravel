@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DaerahController;
 use App\Http\Controllers\Api\DashboardController;
@@ -49,5 +50,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:super_admin|admin')->group(function () {
         Route::get('/settings/wa-reply-template', [SettingController::class, 'waReplyTemplate']);
         Route::put('/settings/wa-reply-template', [SettingController::class, 'updateWaReplyTemplate']);
+    });
+
+    // Log aktivitas: audit trail, hanya super admin (data lintas seluruh wilayah)
+    Route::middleware('role:super_admin')->group(function () {
+        Route::get('/activity-logs', [ActivityLogController::class, 'index']);
     });
 });

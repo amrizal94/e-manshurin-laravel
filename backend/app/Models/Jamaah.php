@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 #[Fillable([
     'kelompok_id', 'nama_lengkap', 'nama_panggilan', 'jenis_kelamin',
@@ -17,9 +19,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Jamaah extends Model
 {
+    use LogsActivity;
+
     protected $table = 'jamaahs';
 
     protected $appends = ['usia'];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logOnlyDirty()->logExcept(['updated_at']);
+    }
 
     protected function casts(): array
     {

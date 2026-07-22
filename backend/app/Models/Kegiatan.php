@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 #[Fillable([
     'nama', 'jenis_pengajian', 'daerah_id', 'desa_id', 'kelompok_id',
@@ -14,7 +16,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Kegiatan extends Model
 {
+    use LogsActivity;
+
     protected $table = 'kegiatans';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logOnlyDirty()->logExcept(['updated_at']);
+    }
 
     /** Jenis pengajian -> kategori usia jamaah yang boleh absen. */
     public const KATEGORI_MAP = [
