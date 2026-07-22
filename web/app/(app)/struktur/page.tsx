@@ -23,6 +23,7 @@ export default function StrukturPage() {
   const [desaId, setDesaId] = useState<number | "">("");
   const [namaText, setNamaText] = useState("");
   const [modalError, setModalError] = useState("");
+  const [sesiDitambahkan, setSesiDitambahkan] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const reload = useCallback(() => {
@@ -60,6 +61,7 @@ export default function StrukturPage() {
     setModal(level);
     setNamaText("");
     setModalError("");
+    setSesiDitambahkan([]);
   }
 
   async function submitTambah() {
@@ -67,6 +69,7 @@ export default function StrukturPage() {
     if (!namas.length) return;
     setSaving(true);
     setModalError("");
+    const sukses: string[] = [];
     const gagal: string[] = [];
 
     for (const nama of namas) {
@@ -78,6 +81,7 @@ export default function StrukturPage() {
         } else if (modal === "kelompok") {
           await api("/kelompoks", { method: "POST", body: JSON.stringify({ nama, desa_id: desaId }) });
         }
+        sukses.push(nama);
       } catch (err) {
         gagal.push(`${nama}: ${err instanceof Error ? err.message : "gagal"}`);
       }
@@ -86,6 +90,7 @@ export default function StrukturPage() {
     reload();
     setNamaText("");
     setSaving(false);
+    if (sukses.length) setSesiDitambahkan((s) => [...s, ...sukses]);
     setModalError(gagal.join("\n"));
   }
 
@@ -223,6 +228,17 @@ export default function StrukturPage() {
                   onChange={(e) => setDesaId(Number(e.target.value))}>
                   {desas.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
                 </select>
+              </div>
+            )}
+
+            {sesiDitambahkan.length > 0 && (
+              <div className="rounded-lg bg-emerald-50 p-2">
+                <p className="mb-1 text-xs font-medium text-emerald-700">
+                  ✓ Sudah masuk daftar ({sesiDitambahkan.length}):
+                </p>
+                <ul className="max-h-24 space-y-0.5 overflow-y-auto text-xs text-emerald-700">
+                  {sesiDitambahkan.map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
               </div>
             )}
 
