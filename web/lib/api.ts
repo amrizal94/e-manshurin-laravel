@@ -25,7 +25,7 @@ export async function api<T = unknown>(
     },
   });
 
-  if (res.status === 401 && typeof window !== "undefined") {
+  if (res.status === 401 && typeof window !== "undefined" && path !== "/auth/login") {
     localStorage.removeItem("token");
     window.location.href = "/login";
   }

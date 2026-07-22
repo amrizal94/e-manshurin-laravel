@@ -37,6 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   async function logout() {
+    if (!confirm("Yakin ingin keluar?")) return;
     try {
       await api("/auth/logout", { method: "POST" });
     } catch {
