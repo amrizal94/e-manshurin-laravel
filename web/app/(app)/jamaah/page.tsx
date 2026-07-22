@@ -23,6 +23,7 @@ interface Jamaah {
   status_mubaligh: boolean;
   sudah_menikah: boolean;
   status_kk: string | null;
+  kepala_keluarga_id: number | null;
   aktif: boolean;
   keterangan_tidak_aktif: string | null;
   photos_count?: number;
@@ -32,7 +33,7 @@ const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
   pekerjaan: "", status_mubaligh: false, sudah_menikah: false, status_kk: "",
-  aktif: true, keterangan_tidak_aktif: "",
+  kepala_keluarga_id: "" as number | "", aktif: true, keterangan_tidak_aktif: "",
 };
 
 export default function JamaahPage() {
@@ -64,6 +65,7 @@ export default function JamaahPage() {
       no_hp: j.no_hp ?? "", kelompok_id: j.kelompok_id, kategori_usia: j.kategori_usia,
       pekerjaan: j.pekerjaan ?? "", status_mubaligh: j.status_mubaligh,
       sudah_menikah: j.sudah_menikah, status_kk: j.status_kk ?? "",
+      kepala_keluarga_id: j.kepala_keluarga_id ?? "",
       aktif: j.aktif, keterangan_tidak_aktif: j.keterangan_tidak_aktif ?? "",
     } : { ...KOSONG, kelompok_id: kelompoks[0]?.id ?? 0 });
   }
@@ -81,6 +83,7 @@ export default function JamaahPage() {
       no_hp: form.no_hp || null,
       pekerjaan: form.pekerjaan || null,
       status_kk: form.status_kk || null,
+      kepala_keluarga_id: form.kepala_keluarga_id || null,
       keterangan_tidak_aktif: form.keterangan_tidak_aktif || null,
     });
     try {
@@ -253,6 +256,16 @@ export default function JamaahPage() {
                   <option value="suami">Suami</option>
                   <option value="istri">Istri</option>
                   <option value="anak">Anak</option>
+                </select>
+              </div>
+              <div>
+                <label className={label}>Kepala Keluarga</label>
+                <select className={input} value={form.kepala_keluarga_id}
+                  onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
+                  <option value="">- (bukan anggota keluarga siapa pun)</option>
+                  {rows.filter((r) => r.id !== editId).map((r) => (
+                    <option key={r.id} value={r.id}>{r.nama_lengkap}</option>
+                  ))}
                 </select>
               </div>
               <div className="col-span-2 flex gap-6">
