@@ -54,8 +54,11 @@ export default function AbsenWajahPage() {
   }, []);
 
   useEffect(() => {
-    faceapi.nets.tinyFaceDetector
-      .loadFromUri("/models")
+    // ponytail: backend webgl tfjs kerap hang di Safari iOS — paksa cpu, model tiny ini cukup ringan
+    faceapi.tf
+      .setBackend("cpu")
+      .then(() => faceapi.tf.ready())
+      .then(() => faceapi.nets.tinyFaceDetector.loadFromUri("/models"))
       .then(() => faceapi.nets.faceLandmark68TinyNet.loadFromUri("/models"))
       .then(() => setModelSiap(true))
       .catch(() => setError("Model deteksi wajah gagal dimuat."));
