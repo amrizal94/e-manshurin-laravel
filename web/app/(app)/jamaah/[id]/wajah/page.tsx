@@ -83,7 +83,7 @@ export default function WajahPage() {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
         {jamaah?.photos.map((f) => (
-          <div key={f.id} className="group relative overflow-hidden rounded-xl border border-gray-200">
+          <div key={f.id} className="relative overflow-hidden rounded-xl border border-gray-200">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`${API_ORIGIN}/storage/${f.path}`}
@@ -92,7 +92,7 @@ export default function WajahPage() {
             />
             <button
               onClick={() => hapus(f)}
-              className="absolute right-1 top-1 hidden rounded bg-red-600 px-2 py-0.5 text-xs text-white group-hover:block"
+              className="absolute right-1 top-1 rounded bg-red-600/90 px-2 py-1 text-xs font-medium text-white hover:bg-red-600"
             >
               Hapus
             </button>
