@@ -58,6 +58,45 @@ class JamaahApiTest extends TestCase
         $this->assertIsInt($response->json('data.data.0.usia'));
     }
 
+    public function test_kepala_keluarga_tidak_boleh_jadi_anggota_keluarga_lain(): void
+    {
+        $lain = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Kepala Keluarga Lain',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs', [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Konflik',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+            'status_kk' => 'kepala_keluarga',
+            'kepala_keluarga_id' => $lain->id,
+        ])->assertStatus(422);
+    }
+
+    public function test_anggota_keluarga_bisa_pilih_kepala_keluarga(): void
+    {
+        $kepala = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Kepala Keluarga',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+            'status_kk' => 'kepala_keluarga',
+        ]);
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs', [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Cucu Satu',
+            'jenis_kelamin' => 'P',
+            'kategori_usia' => 'paud_tk',
+            'status_kk' => 'cucu',
+            'kepala_keluarga_id' => $kepala->id,
+        ])->assertCreated()->assertJsonPath('data.kepala_keluarga_id', $kepala->id);
+    }
+
     public function test_scoping_hides_jamaah_outside_user_structure(): void
     {
         Jamaah::create([

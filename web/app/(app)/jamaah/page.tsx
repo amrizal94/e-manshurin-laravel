@@ -250,23 +250,35 @@ export default function JamaahPage() {
               <div>
                 <label className={label}>Status KK</label>
                 <select className={input} value={form.status_kk}
-                  onChange={(e) => setForm({ ...form, status_kk: e.target.value })}>
+                  onChange={(e) => setForm({
+                    ...form,
+                    status_kk: e.target.value,
+                    kepala_keluarga_id: e.target.value === "kepala_keluarga" ? "" : form.kepala_keluarga_id,
+                  })}>
                   <option value="">-</option>
                   <option value="kepala_keluarga">Kepala Keluarga</option>
                   <option value="suami">Suami</option>
                   <option value="istri">Istri</option>
                   <option value="anak">Anak</option>
+                  <option value="menantu">Menantu</option>
+                  <option value="cucu">Cucu</option>
+                  <option value="orang_tua">Orang Tua</option>
+                  <option value="mertua">Mertua</option>
                 </select>
               </div>
               <div>
                 <label className={label}>Kepala Keluarga</label>
                 <select className={input} value={form.kepala_keluarga_id}
+                  disabled={form.status_kk === "kepala_keluarga"}
                   onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
                   <option value="">- (bukan anggota keluarga siapa pun)</option>
                   {rows.filter((r) => r.id !== editId).map((r) => (
                     <option key={r.id} value={r.id}>{r.nama_lengkap}</option>
                   ))}
                 </select>
+                {form.status_kk === "kepala_keluarga" && (
+                  <p className="mt-1 text-xs text-gray-400">Kepala keluarga tidak bisa jadi anggota keluarga lain</p>
+                )}
               </div>
               <div className="col-span-2 flex gap-6">
                 <label className="flex items-center gap-2 text-sm text-gray-700">

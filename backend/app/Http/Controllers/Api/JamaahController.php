@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 
 class JamaahController extends Controller
 {
+    private const STATUS_KK = ['kepala_keluarga', 'suami', 'istri', 'anak', 'menantu', 'cucu', 'orang_tua', 'mertua'];
+
     private function rules(): array
     {
         return [
@@ -27,11 +29,23 @@ class JamaahController extends Controller
             'pekerjaan' => ['nullable', 'string', 'max:255'],
             'status_mubaligh' => ['boolean'],
             'sudah_menikah' => ['boolean'],
-            'status_kk' => ['nullable', 'in:kepala_keluarga,suami,istri,anak'],
+            'status_kk' => ['nullable', 'in:' . implode(',', self::STATUS_KK)],
             'kepala_keluarga_id' => ['nullable', 'exists:jamaahs,id'],
             'aktif' => ['boolean'],
             'keterangan_tidak_aktif' => ['nullable', 'string'],
         ];
+    }
+
+    /** Kepala keluarga adalah rujukan keluarganya sendiri — gak boleh sekaligus jadi anggota keluarga lain. */
+    private function assertKepalaKeluarga(array $data, ?int $selfId = null): void
+    {
+        if (($data['status_kk'] ?? null) === 'kepala_keluarga') {
+            abort_if(! empty($data['kepala_keluarga_id']), 422, 'Kepala keluarga tidak bisa sekaligus tercatat sebagai anggota keluarga lain');
+        }
+
+        if ($selfId !== null && ($data['kepala_keluarga_id'] ?? null) === $selfId) {
+            abort(422, 'Kepala keluarga tidak boleh menunjuk diri sendiri');
+        }
     }
 
     public function index(Request $request): JsonResponse
@@ -63,7 +77,10 @@ class JamaahController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $jamaah = Jamaah::create($request->validate($this->rules()));
+        $data = $request->validate($this->rules());
+        $this->assertKepalaKeluarga($data);
+
+        $jamaah = Jamaah::create($data);
 
         return response()->json(['success' => true, 'message' => 'Jamaah dibuat', 'data' => $jamaah], 201);
     }
@@ -82,7 +99,11 @@ class JamaahController extends Controller
     public function update(Request $request, Jamaah $jamaah): JsonResponse
     {
         abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
-        $jamaah->update($request->validate($this->rules()));
+
+        $data = $request->validate($this->rules());
+        $this->assertKepalaKeluarga($data, $jamaah->id);
+
+        $jamaah->update($data);
 
         return response()->json(['success' => true, 'message' => 'Jamaah diperbarui', 'data' => $jamaah]);
     }
