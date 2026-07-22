@@ -2,8 +2,11 @@
 // Scale-invariant (rasio jarak), jadi tidak perlu ikut ukuran wajah di frame.
 // Titik urut: [sudutLuar, atas1, atas2, sudutDalam, bawah2, bawah1] (skema 68-point).
 
-export const EAR_OPEN = 0.28;
-export const EAR_CLOSED = 0.2;
+// ponytail: nilai absolut ini bervariasi per bentuk mata/wajah/sudut kamera — dikalibrasi ulang
+// dari data nyata (device iOS, EAR mata terbuka terbaca ~0.226 dengan tinyFaceDetector+tiny landmark).
+// Kalau masih gak akurat buat wajah lain, naikkan/turunkan sesuai angka EAR live di layar absen-wajah.
+export const EAR_OPEN = 0.23;
+export const EAR_CLOSED = 0.16;
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
