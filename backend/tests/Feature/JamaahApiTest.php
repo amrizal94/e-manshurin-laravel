@@ -97,6 +97,26 @@ class JamaahApiTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.kepala_keluarga_id', $kepala->id);
     }
 
+    public function test_kepala_keluarga_id_harus_menunjuk_orang_berstatus_kepala_keluarga(): void
+    {
+        $bukanKepala = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Anak Satu',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'praremaja',
+            'status_kk' => 'anak',
+        ]);
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs', [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Anak Dua',
+            'jenis_kelamin' => 'P',
+            'kategori_usia' => 'praremaja',
+            'status_kk' => 'anak',
+            'kepala_keluarga_id' => $bukanKepala->id,
+        ])->assertStatus(422);
+    }
+
     public function test_scoping_hides_jamaah_outside_user_structure(): void
     {
         Jamaah::create([

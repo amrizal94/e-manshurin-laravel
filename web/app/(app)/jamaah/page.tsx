@@ -272,7 +272,7 @@ export default function JamaahPage() {
                   disabled={form.status_kk === "kepala_keluarga"}
                   onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
                   <option value="">- (bukan anggota keluarga siapa pun)</option>
-                  {rows.filter((r) => r.id !== editId).map((r) => (
+                  {rows.filter((r) => r.id !== editId && r.status_kk === "kepala_keluarga").map((r) => (
                     <option key={r.id} value={r.id}>{r.nama_lengkap}</option>
                   ))}
                 </select>

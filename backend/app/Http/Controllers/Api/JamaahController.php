@@ -41,11 +41,18 @@ class JamaahController extends Controller
     {
         if (($data['status_kk'] ?? null) === 'kepala_keluarga') {
             abort_if(! empty($data['kepala_keluarga_id']), 422, 'Kepala keluarga tidak bisa sekaligus tercatat sebagai anggota keluarga lain');
+
+            return;
         }
 
-        if ($selfId !== null && ($data['kepala_keluarga_id'] ?? null) === $selfId) {
-            abort(422, 'Kepala keluarga tidak boleh menunjuk diri sendiri');
+        if (empty($data['kepala_keluarga_id'])) {
+            return;
         }
+
+        abort_if($data['kepala_keluarga_id'] === $selfId, 422, 'Kepala keluarga tidak boleh menunjuk diri sendiri');
+
+        $target = Jamaah::find($data['kepala_keluarga_id']);
+        abort_if($target?->status_kk !== 'kepala_keluarga', 422, 'Kepala keluarga yang dipilih harus berstatus KK "Kepala Keluarga"');
     }
 
     public function index(Request $request): JsonResponse
