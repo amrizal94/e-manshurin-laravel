@@ -15,7 +15,7 @@ interface Pengguna {
   kelompok?: Opsi | null;
 }
 
-const KOSONG = { name: "", email: "", password: "", role: "absensi", target: "" };
+const KOSONG = { name: "", email: "", password: "", role: "absensi", target: "semua" };
 
 export default function PenggunaPage() {
   const [rows, setRows] = useState<Pengguna[]>([]);
@@ -44,7 +44,7 @@ export default function PenggunaPage() {
     if (u.kelompok) return `kelompok:${u.kelompok.id}`;
     if (u.desa) return `desa:${u.desa.id}`;
     if (u.daerah) return `daerah:${u.daerah.id}`;
-    return "";
+    return "semua";
   }
 
   function buka(u?: Pengguna) {
@@ -198,7 +198,7 @@ export default function PenggunaPage() {
               <label className={label}>Wilayah *</label>
               <select required className={input} value={form.target}
                 onChange={(e) => setForm({ ...form, target: e.target.value })}>
-                <option value="">Seluruh (Super Admin)</option>
+                <option value="semua">Seluruh (Super Admin)</option>
                 {daerahs.map((d) => <option key={`da${d.id}`} value={`daerah:${d.id}`}>Daerah — {d.nama}</option>)}
                 {desas.map((d) => <option key={`de${d.id}`} value={`desa:${d.id}`}>Desa — {d.nama}</option>)}
                 {kelompoks.map((k) => <option key={`ke${k.id}`} value={`kelompok:${k.id}`}>Kelompok — {k.nama}</option>)}
