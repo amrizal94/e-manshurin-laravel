@@ -14,8 +14,7 @@ interface Hasil {
 }
 
 const STABIL_MS = 1000;
-const HILANG_GRACE_MS = 800;
-const LOMPAT_POSISI_RASIO = 0.5; // pergeseran kotak wajah > 50% lebar kotak = dianggap wajah lain
+const COOLDOWN_MS = 2000; // batas laju scan otomatis — absensi idempotent, jadi ini cukup cegah spam
 
 function ucapkanTerimaKasih(nama: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -37,9 +36,7 @@ export default function AbsenWajahPage() {
   const [suaraAktif, setSuaraAktif] = useState(false);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
-  const sudahDiprosesRef = useRef(false);
-  const hilangSejakRef = useRef<number | null>(null);
-  const posisiTerakhirRef = useRef<{ x: number; y: number; width: number } | null>(null);
+  const scanTerakhirRef = useRef(0);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -121,39 +118,15 @@ export default function AbsenWajahPage() {
           const hasil = await Promise.race([deteksi, timeout]);
 
           if (hasil === "timeout" || !hasil) {
-            // toleransi: deteksi kadang meleset 1 frame walau wajah masih di kamera —
-            // jangan langsung anggap orangnya pergi, tunggu absen beneran-beneran dulu.
-            if (hilangSejakRef.current === null) hilangSejakRef.current = Date.now();
-            if (Date.now() - hilangSejakRef.current >= HILANG_GRACE_MS) {
-              setWajahTerdeteksi(false);
-              stabilSejakRef.current = null;
-              sudahDiprosesRef.current = false;
-              posisiTerakhirRef.current = null;
-            }
+            setWajahTerdeteksi(false);
+            stabilSejakRef.current = null;
           } else {
-            hilangSejakRef.current = null;
-
-            const box = hasil.box;
-            const posisi = posisiTerakhirRef.current;
-            const gantiOrang =
-              posisi !== null &&
-              (Math.abs(box.x - posisi.x) > posisi.width * LOMPAT_POSISI_RASIO ||
-                Math.abs(box.y - posisi.y) > posisi.width * LOMPAT_POSISI_RASIO);
-            posisiTerakhirRef.current = { x: box.x, y: box.y, width: box.width };
-
-            if (gantiOrang) {
-              // wajah baru masuk pas-pasan wajah lama keluar, tanpa jeda "tidak terdeteksi" —
-              // kotak wajah melompat jauh, anggap ini orang lain, mulai sesi baru.
-              stabilSejakRef.current = Date.now();
-              sudahDiprosesRef.current = false;
-            } else if (stabilSejakRef.current === null) {
-              stabilSejakRef.current = Date.now();
-            }
-
             setWajahTerdeteksi(true);
+            if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
-            if (stabilMs >= STABIL_MS && !sudahDiprosesRef.current) {
-              sudahDiprosesRef.current = true;
+            const sejakScanTerakhir = Date.now() - scanTerakhirRef.current;
+            if (stabilMs >= STABIL_MS && sejakScanTerakhir >= COOLDOWN_MS) {
+              scanTerakhirRef.current = Date.now();
               scan();
             }
           }
