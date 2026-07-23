@@ -44,6 +44,10 @@ function gambarBox(canvas: HTMLCanvasElement, box: faceapi.Box, label: string) {
 
 const AMBANG_ANAK = 15; // SMP ke bawah
 const AMBANG_TUA = 40;
+// Kebanyakan device cuma punya 1 voice id-ID (gak ada pilihan suara pria/wanita) —
+// nada dasar diturunkan/dinaikkan biar kedengaran beda meski dari voice yang sama.
+const PITCH_PRIA = 0.85;
+const PITCH_WANITA = 1.15;
 
 /** Tanpa tanggal lahir (usia null), pakai kategori_usia sebagai perkiraan — default aman ke "muda", bukan "tua". */
 function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string): string {
@@ -65,6 +69,7 @@ function ucapkanTerimaKasih(nama: string, jenisKelamin: "L" | "P", usia: number 
   const sapaan = tentukanSapaan(jenisKelamin, usia, kategoriUsia);
   const utter = new SpeechSynthesisUtterance(`${doa}, ${sapaan} ${nama}, sudah absen`);
   utter.lang = "id-ID";
+  utter.pitch = jenisKelamin === "L" ? PITCH_PRIA : PITCH_WANITA;
   window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
   window.speechSynthesis.speak(utter);
 }
