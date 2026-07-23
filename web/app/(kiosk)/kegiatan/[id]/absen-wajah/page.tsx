@@ -14,7 +14,10 @@ interface Hasil {
 }
 
 const STABIL_MS = 1000;
-const COOLDOWN_MS = 2000; // batas laju scan otomatis — absensi idempotent, jadi ini cukup cegah spam
+// Sekali wajah sukses discan, jangan diulang selama orangnya masih di depan kamera —
+// tapi kalau lebih dari PLAFON_MS berlalu, paksa scan lagi (jaga-jaga jangan sampai macet
+// permanen kalau deteksi salah kira "masih orang yang sama").
+const PLAFON_MS = 6000;
 
 function ucapkanTerimaKasih(nama: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -36,6 +39,7 @@ export default function AbsenWajahPage() {
   const [suaraAktif, setSuaraAktif] = useState(false);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
+  const sudahDiprosesRef = useRef(false);
   const scanTerakhirRef = useRef(0);
 
   useEffect(() => {
@@ -120,12 +124,15 @@ export default function AbsenWajahPage() {
           if (hasil === "timeout" || !hasil) {
             setWajahTerdeteksi(false);
             stabilSejakRef.current = null;
+            sudahDiprosesRef.current = false;
           } else {
             setWajahTerdeteksi(true);
             if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
             const sejakScanTerakhir = Date.now() - scanTerakhirRef.current;
-            if (stabilMs >= STABIL_MS && sejakScanTerakhir >= COOLDOWN_MS) {
+            const bolehScan = !sudahDiprosesRef.current || sejakScanTerakhir >= PLAFON_MS;
+            if (stabilMs >= STABIL_MS && bolehScan) {
+              sudahDiprosesRef.current = true;
               scanTerakhirRef.current = Date.now();
               scan();
             }
