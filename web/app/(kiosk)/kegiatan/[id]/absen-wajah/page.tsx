@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import * as faceapi from "face-api.js";
 import { api } from "@/lib/api";
-import { eyeAspectRatio, EAR_OPEN, EAR_CLOSED } from "@/lib/ear.mjs";
 
 interface Hasil {
   ok: boolean;
@@ -14,14 +13,7 @@ interface Hasil {
   waktu: string;
 }
 
-type LivenessState = "waiting" | "eyesOpen" | "blinking" | "passed";
-
-const LABEL_LIVENESS: Record<LivenessState, string> = {
-  waiting: "Arahkan wajah ke kamera...",
-  eyesOpen: "Kedipkan mata untuk verifikasi...",
-  blinking: "Kedipkan mata untuk verifikasi...",
-  passed: "Terverifikasi ✓ — memproses...",
-};
+const STABIL_MS = 1000;
 
 export default function AbsenWajahPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,11 +23,10 @@ export default function AbsenWajahPage() {
   const [riwayat, setRiwayat] = useState<Hasil[]>([]);
   const [error, setError] = useState("");
   const [modelSiap, setModelSiap] = useState(false);
-  const [liveness, setLiveness] = useState<LivenessState>("waiting");
-  const [earDebug, setEarDebug] = useState<number | null>(null);
-  const [debugMsg, setDebugMsg] = useState("belum mulai");
-  const [tickCount, setTickCount] = useState(0);
+  const [wajahTerdeteksi, setWajahTerdeteksi] = useState(false);
   const prosesRef = useRef(false);
+  const stabilSejakRef = useRef<number | null>(null);
+  const sudahDiprosesRef = useRef(false);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -59,7 +50,6 @@ export default function AbsenWajahPage() {
       .setBackend("cpu")
       .then(() => faceapi.tf.ready())
       .then(() => faceapi.nets.tinyFaceDetector.loadFromUri("/models"))
-      .then(() => faceapi.nets.faceLandmark68TinyNet.loadFromUri("/models"))
       .then(() => setModelSiap(true))
       .catch(() => setError("Model deteksi wajah gagal dimuat."));
   }, []);
@@ -97,11 +87,10 @@ export default function AbsenWajahPage() {
     } finally {
       prosesRef.current = false;
       setProses(false);
-      setLiveness("waiting"); // wajib kedip baru lagi untuk scan berikutnya
     }
   }, [id]);
 
-  // Loop deteksi kedipan mata — cegah foto statis di layar HP lain lolos absen.
+  // Auto-scan begitu wajah terdeteksi stabil — kiosk diawasi panitia, tidak perlu verifikasi kedip.
   useEffect(() => {
     if (!modelSiap || !siap) return;
     let batal = false;
@@ -111,35 +100,26 @@ export default function AbsenWajahPage() {
       const video = videoRef.current;
 
       if (video && !prosesRef.current) {
-        setTickCount((n) => n + 1);
         try {
           const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2000));
-          const deteksi = faceapi
-            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks(true);
+          const deteksi = faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
           const hasil = await Promise.race([deteksi, timeout]);
 
-          if (hasil === "timeout") {
-            setDebugMsg("timeout (>2s, kemungkinan backend tf.js hang)");
-            setEarDebug(null);
-          } else if (!hasil) {
-            setDebugMsg("wajah tidak terdeteksi");
-            setEarDebug(null);
-            setLiveness("waiting");
+          if (hasil === "timeout" || !hasil) {
+            setWajahTerdeteksi(false);
+            stabilSejakRef.current = null;
+            sudahDiprosesRef.current = false;
           } else {
-            const nilaiEar = (eyeAspectRatio(hasil.landmarks.getLeftEye()) + eyeAspectRatio(hasil.landmarks.getRightEye())) / 2;
-            setEarDebug(nilaiEar);
-            setDebugMsg("wajah terdeteksi");
-
-            setLiveness((state) => {
-              if (state === "waiting" && nilaiEar > EAR_OPEN) return "eyesOpen";
-              if (state === "eyesOpen" && nilaiEar < EAR_CLOSED) return "blinking";
-              if (state === "blinking" && nilaiEar > EAR_OPEN) return "passed";
-              return state;
-            });
+            setWajahTerdeteksi(true);
+            if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
+            const stabilMs = Date.now() - stabilSejakRef.current;
+            if (stabilMs >= STABIL_MS && !sudahDiprosesRef.current) {
+              sudahDiprosesRef.current = true;
+              scan();
+            }
           }
-        } catch (err) {
-          setDebugMsg(`error: ${err instanceof Error ? err.message : String(err)}`);
+        } catch {
+          // deteksi transien gagal — abaikan, coba lagi loop berikutnya
         }
       }
 
@@ -148,13 +128,16 @@ export default function AbsenWajahPage() {
     loop();
 
     return () => { batal = true; };
-  }, [modelSiap, siap]);
-
-  useEffect(() => {
-    if (liveness === "passed") scan();
-  }, [liveness, scan]);
+  }, [modelSiap, siap, scan]);
 
   const terakhir = riwayat[0];
+  const label = !modelSiap
+    ? "Memuat model deteksi wajah..."
+    : proses
+      ? "Memproses..."
+      : wajahTerdeteksi
+        ? "Wajah terdeteksi, tahan sebentar..."
+        : "Arahkan wajah ke kamera...";
 
   return (
     <div className="relative flex min-h-screen flex-col items-center gap-4 p-4 text-white sm:gap-6 sm:p-8">
@@ -179,19 +162,9 @@ export default function AbsenWajahPage() {
           muted
           className="aspect-[4/3] w-full rounded-2xl border-4 border-gray-800 bg-black object-cover"
         />
-        {/* ponytail: debug readout sementara buat kalibrasi threshold EAR, hapus setelah nilai fix ditentukan */}
-        {modelSiap && (
-          <p className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 font-mono text-xs leading-relaxed text-yellow-300">
-            tick: {tickCount} | {debugMsg}
-            <br />
-            EAR: {earDebug !== null ? earDebug.toFixed(3) : "-"} (open&gt;{EAR_OPEN} closed&lt;{EAR_CLOSED})
-          </p>
-        )}
         {siap && (
           <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 px-4 py-3 text-center sm:py-5">
-            <p className="text-base font-semibold sm:text-2xl">
-              {modelSiap ? LABEL_LIVENESS[liveness] : "Memuat model deteksi wajah..."}
-            </p>
+            <p className="text-base font-semibold sm:text-2xl">{label}</p>
           </div>
         )}
       </div>
@@ -212,7 +185,7 @@ export default function AbsenWajahPage() {
         disabled={!siap || proses}
         className="rounded-xl border border-gray-700 px-6 py-3 text-xs font-medium text-gray-400 hover:bg-gray-900 disabled:opacity-50 sm:text-sm"
       >
-        {proses ? "Memproses..." : "Scan manual (tanpa verifikasi kedip)"}
+        {proses ? "Memproses..." : "Scan manual"}
       </button>
 
       <div className="w-full max-w-2xl flex-1">
@@ -228,7 +201,7 @@ export default function AbsenWajahPage() {
           ))}
           {riwayat.length <= 1 && (
             <li className="p-6 text-center text-sm text-gray-600">
-              Arahkan wajah ke kamera dan kedipkan mata untuk absen otomatis
+              Arahkan wajah ke kamera untuk absen otomatis
             </li>
           )}
         </ul>
