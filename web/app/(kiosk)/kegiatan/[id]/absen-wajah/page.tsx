@@ -18,6 +18,29 @@ const STABIL_MS = 1000;
 // tapi kalau lebih dari PLAFON_MS berlalu, paksa scan lagi (jaga-jaga jangan sampai macet
 // permanen kalau deteksi salah kira "masih orang yang sama").
 const PLAFON_MS = 6000;
+// inputSize kecil = deteksi jauh lebih cepat, cukup akurat buat wajah dekat kamera (kiosk).
+const DETEKSI_OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 224 });
+// Berapa lama nama panggilan tetap nempel di box setelah match sukses.
+const OVERLAY_NAMA_MS = 3000;
+
+function isIOSSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  return iOS && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+}
+
+function gambarBox(canvas: HTMLCanvasElement, box: faceapi.Box, label: string) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#34d399";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(box.x, box.y, box.width, box.height);
+  ctx.fillStyle = "#34d399";
+  ctx.font = "16px sans-serif";
+  ctx.fillText(label, box.x, box.y > 20 ? box.y - 6 : box.y + 16);
+}
 
 function ucapkanTerimaKasih(nama: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -30,6 +53,7 @@ function ucapkanTerimaKasih(nama: string) {
 export default function AbsenWajahPage() {
   const { id } = useParams<{ id: string }>();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [siap, setSiap] = useState(false);
   const [proses, setProses] = useState(false);
   const [riwayat, setRiwayat] = useState<Hasil[]>([]);
@@ -41,6 +65,7 @@ export default function AbsenWajahPage() {
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
   const scanTerakhirRef = useRef(0);
+  const namaOverlayRef = useRef<{ nama: string; sampaiMs: number } | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -59,9 +84,10 @@ export default function AbsenWajahPage() {
   }, []);
 
   useEffect(() => {
-    // ponytail: backend webgl tfjs kerap hang di Safari iOS — paksa cpu, model tiny ini cukup ringan
+    // ponytail: webgl tfjs kerap hang di Safari iOS — cpu cuma dipakai di sana, device lain tetap webgl (lebih cepat)
     faceapi.tf
-      .setBackend("cpu")
+      .setBackend(isIOSSafari() ? "cpu" : "webgl")
+      .catch(() => faceapi.tf.setBackend("cpu"))
       .then(() => faceapi.tf.ready())
       .then(() => faceapi.nets.tinyFaceDetector.loadFromUri("/models"))
       .then(() => setModelSiap(true))
@@ -96,6 +122,7 @@ export default function AbsenWajahPage() {
         { method: "POST", body }
       );
       const { nama_lengkap, nama_panggilan } = res.data.jamaah;
+      namaOverlayRef.current = { nama: nama_panggilan || nama_lengkap, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
       ucapkanTerimaKasih(nama_panggilan || nama_lengkap);
       setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
     } catch (err) {
@@ -117,16 +144,31 @@ export default function AbsenWajahPage() {
 
       if (video && !prosesRef.current) {
         try {
+          if (canvasRef.current && video.videoWidth) {
+            if (canvasRef.current.width !== video.videoWidth) canvasRef.current.width = video.videoWidth;
+            if (canvasRef.current.height !== video.videoHeight) canvasRef.current.height = video.videoHeight;
+          }
+
           const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 2000));
-          const deteksi = faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
+          const deteksi = faceapi.detectSingleFace(video, DETEKSI_OPTIONS);
           const hasil = await Promise.race([deteksi, timeout]);
 
           if (hasil === "timeout" || !hasil) {
             setWajahTerdeteksi(false);
             stabilSejakRef.current = null;
             sudahDiprosesRef.current = false;
+            if (canvasRef.current) {
+              canvasRef.current.getContext("2d")?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            }
           } else {
             setWajahTerdeteksi(true);
+            if (canvasRef.current) {
+              const skorPersen = Math.round(hasil.score * 100);
+              const overlay = namaOverlayRef.current && namaOverlayRef.current.sampaiMs > Date.now()
+                ? namaOverlayRef.current.nama
+                : null;
+              gambarBox(canvasRef.current, hasil.box, overlay ? `${overlay} (${skorPersen}%)` : `${skorPersen}%`);
+            }
             if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
             const sejakScanTerakhir = Date.now() - scanTerakhirRef.current;
@@ -197,6 +239,7 @@ export default function AbsenWajahPage() {
           muted
           className="aspect-[4/3] w-full rounded-2xl border-4 border-gray-800 bg-black object-cover"
         />
+        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 aspect-[4/3] w-full" />
         {siap && (
           <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 px-4 py-3 text-center sm:py-5">
             <p className="text-base font-semibold sm:text-2xl">{label}</p>
