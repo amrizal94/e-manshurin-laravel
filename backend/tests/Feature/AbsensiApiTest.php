@@ -96,19 +96,17 @@ class AbsensiApiTest extends TestCase
 
     public function test_usman_menikah_keluar_dari_peserta_usman_tapi_masuk_umum(): void
     {
-        $usmanLajang = Jamaah::create([
+        Jamaah::create([
             'kelompok_id' => $this->kelompok->id,
             'nama_lengkap' => 'Usman Lajang',
             'jenis_kelamin' => 'L',
             'kategori_usia' => 'usman',
-            'sudah_menikah' => false,
         ]);
-        $usmanMenikah = Jamaah::create([
+        Jamaah::create([
             'kelompok_id' => $this->kelompok->id,
             'nama_lengkap' => 'Usman Menikah',
             'jenis_kelamin' => 'P',
-            'kategori_usia' => 'usman',
-            'sudah_menikah' => true,
+            'kategori_usia' => 'menikah',
         ]);
 
         $kegiatanUsman = $this->buatKegiatan('usman');

@@ -14,7 +14,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 #[Fillable([
     'kelompok_id', 'nama_lengkap', 'nama_panggilan', 'jenis_kelamin',
     'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp', 'kategori_usia',
-    'pekerjaan', 'status_mubaligh', 'sudah_menikah', 'status_kk',
+    'pekerjaan', 'status_mubaligh', 'status_kk',
     'kepala_keluarga_id', 'aktif', 'keterangan_tidak_aktif',
 ])]
 class Jamaah extends Model
@@ -35,7 +35,6 @@ class Jamaah extends Model
         return [
             'tanggal_lahir' => 'date',
             'status_mubaligh' => 'boolean',
-            'sudah_menikah' => 'boolean',
             'aktif' => 'boolean',
         ];
     }

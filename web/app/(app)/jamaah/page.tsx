@@ -21,7 +21,6 @@ interface Jamaah {
   kategori_usia: string;
   pekerjaan: string | null;
   status_mubaligh: boolean;
-  sudah_menikah: boolean;
   status_kk: string | null;
   kepala_keluarga_id: number | null;
   aktif: boolean;
@@ -32,7 +31,7 @@ interface Jamaah {
 const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
-  pekerjaan: "", status_mubaligh: false, sudah_menikah: false, status_kk: "",
+  pekerjaan: "", status_mubaligh: false, status_kk: "",
   kepala_keluarga_id: "" as number | "", aktif: true, keterangan_tidak_aktif: "",
 };
 
@@ -64,7 +63,7 @@ export default function JamaahPage() {
       tanggal_lahir: j.tanggal_lahir?.slice(0, 10) ?? "", alamat: j.alamat ?? "",
       no_hp: j.no_hp ?? "", kelompok_id: j.kelompok_id, kategori_usia: j.kategori_usia,
       pekerjaan: j.pekerjaan ?? "", status_mubaligh: j.status_mubaligh,
-      sudah_menikah: j.sudah_menikah, status_kk: j.status_kk ?? "",
+      status_kk: j.status_kk ?? "",
       kepala_keluarga_id: j.kepala_keluarga_id ?? "",
       aktif: j.aktif, keterangan_tidak_aktif: j.keterangan_tidak_aktif ?? "",
     } : { ...KOSONG, kelompok_id: kelompoks[0]?.id ?? 0 });
@@ -150,10 +149,7 @@ export default function JamaahPage() {
                 <td className="p-3 font-medium text-gray-900">{j.nama_lengkap}</td>
                 <td className="p-3">{j.jenis_kelamin}</td>
                 <td className="p-3">{j.usia ?? "-"}</td>
-                <td className="p-3">
-                  {KATEGORI_USIA[j.kategori_usia]}
-                  {j.sudah_menikah && <span className="ml-1 text-xs text-gray-400">(Menikah)</span>}
-                </td>
+                <td className="p-3">{KATEGORI_USIA[j.kategori_usia]}</td>
                 <td className="p-3">
                   {j.kelompok?.nama}
                   {j.kelompok?.desa && <span className="text-gray-400"> — {j.kelompok.desa.nama}</span>}
@@ -241,11 +237,6 @@ export default function JamaahPage() {
                     <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
-                <label className="mt-1 flex items-center gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={form.sudah_menikah}
-                    onChange={(e) => setForm({ ...form, sudah_menikah: e.target.checked })} />
-                  Menikah
-                </label>
               </div>
               <div>
                 <label className={label}>Pekerjaan</label>
