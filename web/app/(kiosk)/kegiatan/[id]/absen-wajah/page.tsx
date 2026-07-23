@@ -15,6 +15,7 @@ interface Hasil {
 
 const STABIL_MS = 1000;
 const HILANG_GRACE_MS = 800;
+const LOMPAT_POSISI_RASIO = 0.5; // pergeseran kotak wajah > 50% lebar kotak = dianggap wajah lain
 
 export default function AbsenWajahPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +30,7 @@ export default function AbsenWajahPage() {
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
   const hilangSejakRef = useRef<number | null>(null);
+  const posisiTerakhirRef = useRef<{ x: number; y: number; width: number } | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -115,11 +117,29 @@ export default function AbsenWajahPage() {
               setWajahTerdeteksi(false);
               stabilSejakRef.current = null;
               sudahDiprosesRef.current = false;
+              posisiTerakhirRef.current = null;
             }
           } else {
             hilangSejakRef.current = null;
+
+            const box = hasil.box;
+            const posisi = posisiTerakhirRef.current;
+            const gantiOrang =
+              posisi !== null &&
+              (Math.abs(box.x - posisi.x) > posisi.width * LOMPAT_POSISI_RASIO ||
+                Math.abs(box.y - posisi.y) > posisi.width * LOMPAT_POSISI_RASIO);
+            posisiTerakhirRef.current = { x: box.x, y: box.y, width: box.width };
+
+            if (gantiOrang) {
+              // wajah baru masuk pas-pasan wajah lama keluar, tanpa jeda "tidak terdeteksi" —
+              // kotak wajah melompat jauh, anggap ini orang lain, mulai sesi baru.
+              stabilSejakRef.current = Date.now();
+              sudahDiprosesRef.current = false;
+            } else if (stabilSejakRef.current === null) {
+              stabilSejakRef.current = Date.now();
+            }
+
             setWajahTerdeteksi(true);
-            if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
             if (stabilMs >= STABIL_MS && !sudahDiprosesRef.current) {
               sudahDiprosesRef.current = true;
