@@ -274,16 +274,22 @@ export default function AbsenWajahPage() {
         </button>
       </div>
 
-      {daftarVoice && (
-        <div className="w-full max-w-2xl rounded-lg border border-gray-700 bg-gray-900 p-3 text-xs text-gray-300">
-          <p className="mb-1 font-semibold text-gray-400">Voice tersedia ({daftarVoice.length}):</p>
-          <ul className="max-h-40 space-y-0.5 overflow-y-auto">
-            {daftarVoice.map((v, i) => (
-              <li key={i}>{v.lang} — {v.name}{v.default ? " (default)" : ""}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {daftarVoice && (() => {
+        const idVoices = daftarVoice.filter((v) => v.lang.toLowerCase().startsWith("id"));
+        return (
+          <div className="w-full max-w-2xl rounded-lg border border-gray-700 bg-gray-900 p-3 text-xs text-gray-300">
+            <p className="mb-1 font-semibold text-gray-400">
+              Voice id-ID ({idVoices.length} dari {daftarVoice.length} total):
+            </p>
+            {idVoices.length === 0 && <p className="text-red-300">Tidak ada voice id-ID di device ini.</p>}
+            <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+              {idVoices.map((v, i) => (
+                <li key={i}>{v.lang} — {v.name}{v.default ? " (default)" : ""}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       {error && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
