@@ -39,16 +39,22 @@ export default function JamaahPage() {
   const [rows, setRows] = useState<Jamaah[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const reload = useCallback(() => {
-    const params = search ? `?search=${encodeURIComponent(search)}` : "";
+    const params = searchDebounced ? `?search=${encodeURIComponent(searchDebounced)}` : "";
     api<{ data: Jamaah[] }>(`/jamaahs${params}`)
       .then((res) => setRows(res.data.data))
       .catch((err) => setError(err.message));
-  }, [search]);
+  }, [searchDebounced]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -123,7 +129,7 @@ export default function JamaahPage() {
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       <input
-        placeholder="Cari nama..."
+        placeholder="Cari nama lengkap/panggilan..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
