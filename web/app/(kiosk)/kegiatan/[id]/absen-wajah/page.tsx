@@ -103,6 +103,13 @@ export default function AbsenWajahPage() {
   }, []);
 
   useEffect(() => {
+    // iOS Safari blokir speechSynthesis tanpa tap user langsung — device lain bisa langsung aktif otomatis
+    if (isIOSSafari() || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    setSuaraAktif(true);
+  }, []);
+
+  useEffect(() => {
     // ponytail: webgl tfjs kerap hang di Safari iOS — cpu cuma dipakai di sana, device lain tetap webgl (lebih cepat)
     faceapi.tf
       .setBackend(isIOSSafari() ? "cpu" : "webgl")
