@@ -71,10 +71,10 @@ class JamaahController extends Controller
             $query->where('aktif', $request->boolean('aktif'));
         }
         if ($request->filled('search')) {
-            $keyword = '%' . $request->string('search') . '%';
+            $keyword = '%' . mb_strtolower($request->string('search')) . '%';
             $query->where(function ($q) use ($keyword) {
-                $q->where('nama_lengkap', 'like', $keyword)
-                    ->orWhere('nama_panggilan', 'like', $keyword);
+                $q->whereRaw('LOWER(nama_lengkap) like ?', [$keyword])
+                    ->orWhereRaw('LOWER(nama_panggilan) like ?', [$keyword]);
             });
         }
 
