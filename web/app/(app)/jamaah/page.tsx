@@ -241,6 +241,11 @@ export default function JamaahPage() {
                     <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
+                <label className="mt-1 flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={form.sudah_menikah}
+                    onChange={(e) => setForm({ ...form, sudah_menikah: e.target.checked })} />
+                  Menikah
+                </label>
               </div>
               <div>
                 <label className={label}>Pekerjaan</label>
@@ -285,11 +290,6 @@ export default function JamaahPage() {
                   <input type="checkbox" checked={form.status_mubaligh}
                     onChange={(e) => setForm({ ...form, status_mubaligh: e.target.checked })} />
                   Mubaligh
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={form.sudah_menikah}
-                    onChange={(e) => setForm({ ...form, sudah_menikah: e.target.checked })} />
-                  Sudah Menikah
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" checked={form.aktif}
