@@ -14,9 +14,16 @@ use Illuminate\Support\Str;
 
 class WaController extends Controller
 {
+    private const FORMAT_BANTUAN = "Halo 👋 Untuk izin tidak hadir pengajian, kirim pesan dengan format:\n\n"
+        . "izin (nama lengkap) (alasan)\n\n"
+        . "Contoh:\n"
+        . "izin Budi Santoso ada acara keluarga\n\n"
+        . "Nama harus sama persis dengan yang terdaftar ya. Terima kasih 🙏";
+
     /**
      * Webhook dari WA Gateway (D:\Projects\wa) — event "message.received".
-     * Hanya proses pesan teks berawalan "izin " (case-insensitive); selain itu diabaikan.
+     * Pesan berawalan "izin " (case-insensitive) diproses sebagai izin; pesan teks lain
+     * dibalas panduan format supaya jamaah (termasuk yang lanjut usia) langsung paham caranya.
      */
     public function webhook(Request $request): JsonResponse
     {
@@ -33,7 +40,9 @@ class WaController extends Controller
         }
 
         if (! preg_match('/^izin\s+(.+)/is', trim($data['message'] ?? ''), $m)) {
-            return response()->json(['success' => true, 'message' => 'Bukan keyword izin']);
+            $this->balas($data['from'], self::FORMAT_BANTUAN);
+
+            return response()->json(['success' => true, 'message' => 'Kirim panduan format']);
         }
 
         $balasan = $this->prosesIzin(trim($m[1]));

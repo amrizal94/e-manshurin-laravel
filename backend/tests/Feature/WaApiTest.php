@@ -74,14 +74,14 @@ class WaApiTest extends TestCase
             ->assertUnauthorized();
     }
 
-    public function test_pesan_bukan_izin_diabaikan(): void
+    public function test_pesan_bukan_izin_dibalas_panduan_format(): void
     {
-        Http::fake();
+        Http::fake(['*/api/send' => Http::response(['success' => true])]);
 
         $this->kirimWebhook($this->payloadIzin('halo min'))->assertOk();
 
-        Http::assertNothingSent();
         $this->assertSame(0, Absensi::count());
+        Http::assertSent(fn ($r) => str_contains($r['message'] ?? '', 'izin (nama lengkap) (alasan)'));
     }
 
     public function test_event_test_dari_tombol_dashboard_tidak_422(): void
