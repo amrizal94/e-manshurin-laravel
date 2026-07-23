@@ -116,7 +116,14 @@ class FaceController extends Controller
             'success' => true,
             'message' => "Absensi tercatat: {$jamaah->nama_lengkap}",
             'data' => [
-                'jamaah' => ['id' => $jamaah->id, 'nama_lengkap' => $jamaah->nama_lengkap, 'nama_panggilan' => $jamaah->nama_panggilan],
+                'jamaah' => [
+                    'id' => $jamaah->id,
+                    'nama_lengkap' => $jamaah->nama_lengkap,
+                    'nama_panggilan' => $jamaah->nama_panggilan,
+                    'jenis_kelamin' => $jamaah->jenis_kelamin,
+                    'usia' => $jamaah->usia,
+                    'kategori_usia' => $jamaah->kategori_usia,
+                ],
                 'score' => round($best['score'], 4),
                 'absensi' => $absensi,
             ],

@@ -42,9 +42,28 @@ function gambarBox(canvas: HTMLCanvasElement, box: faceapi.Box, label: string) {
   ctx.fillText(label, box.x, box.y > 20 ? box.y - 6 : box.y + 16);
 }
 
-function ucapkanTerimaKasih(nama: string) {
+const AMBANG_ANAK = 15; // SMP ke bawah
+const AMBANG_TUA = 40;
+
+/** Tanpa tanggal lahir (usia null), pakai kategori_usia sebagai perkiraan — default aman ke "muda", bukan "tua". */
+function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string): string {
+  let kelompok: "anak" | "muda" | "tua";
+  if (usia != null) {
+    kelompok = usia <= AMBANG_ANAK ? "anak" : usia <= AMBANG_TUA ? "muda" : "tua";
+  } else {
+    const anak = kategoriUsia === "paud_tk" || kategoriUsia === "caberawit" || kategoriUsia === "praremaja";
+    kelompok = anak ? "anak" : "muda";
+  }
+  if (kelompok === "anak") return "Dek";
+  if (kelompok === "tua") return jenisKelamin === "L" ? "Pak" : "Bu";
+  return jenisKelamin === "L" ? "Mas" : "Mbak";
+}
+
+function ucapkanTerimaKasih(nama: string, jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const utter = new SpeechSynthesisUtterance(`Terima kasih, ${nama}, sudah hadir`);
+  const doa = jenisKelamin === "L" ? "Alhamdulillah, Jazakallahu Khoiro" : "Alhamdulillah, Jazakillahu Khoiro";
+  const sapaan = tentukanSapaan(jenisKelamin, usia, kategoriUsia);
+  const utter = new SpeechSynthesisUtterance(`${doa}, ${sapaan} ${nama}, sudah absen`);
   utter.lang = "id-ID";
   window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
   window.speechSynthesis.speak(utter);
@@ -117,13 +136,19 @@ export default function AbsenWajahPage() {
 
     const waktu = new Date().toLocaleTimeString("id-ID");
     try {
-      const res = await api<{ jamaah: { nama_lengkap: string; nama_panggilan?: string } }>(
-        `/kegiatans/${id}/absensi-wajah`,
-        { method: "POST", body }
-      );
-      const { nama_lengkap, nama_panggilan } = res.data.jamaah;
-      namaOverlayRef.current = { nama: nama_panggilan || nama_lengkap, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
-      ucapkanTerimaKasih(nama_panggilan || nama_lengkap);
+      const res = await api<{
+        jamaah: {
+          nama_lengkap: string;
+          nama_panggilan?: string;
+          jenis_kelamin: "L" | "P";
+          usia: number | null;
+          kategori_usia: string;
+        };
+      }>(`/kegiatans/${id}/absensi-wajah`, { method: "POST", body });
+      const { nama_lengkap, nama_panggilan, jenis_kelamin, usia, kategori_usia } = res.data.jamaah;
+      const nama = nama_panggilan || nama_lengkap;
+      namaOverlayRef.current = { nama, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
+      ucapkanTerimaKasih(nama, jenis_kelamin, usia, kategori_usia);
       setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
     } catch (err) {
       setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
