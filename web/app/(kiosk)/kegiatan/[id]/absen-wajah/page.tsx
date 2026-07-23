@@ -14,6 +14,7 @@ interface Hasil {
 }
 
 const STABIL_MS = 1000;
+const HILANG_GRACE_MS = 800;
 
 export default function AbsenWajahPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function AbsenWajahPage() {
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
+  const hilangSejakRef = useRef<number | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -106,10 +108,16 @@ export default function AbsenWajahPage() {
           const hasil = await Promise.race([deteksi, timeout]);
 
           if (hasil === "timeout" || !hasil) {
-            setWajahTerdeteksi(false);
-            stabilSejakRef.current = null;
-            sudahDiprosesRef.current = false;
+            // toleransi: deteksi kadang meleset 1 frame walau wajah masih di kamera —
+            // jangan langsung anggap orangnya pergi, tunggu absen beneran-beneran dulu.
+            if (hilangSejakRef.current === null) hilangSejakRef.current = Date.now();
+            if (Date.now() - hilangSejakRef.current >= HILANG_GRACE_MS) {
+              setWajahTerdeteksi(false);
+              stabilSejakRef.current = null;
+              sudahDiprosesRef.current = false;
+            }
           } else {
+            hilangSejakRef.current = null;
             setWajahTerdeteksi(true);
             if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
