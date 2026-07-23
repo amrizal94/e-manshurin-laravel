@@ -17,6 +17,14 @@ const STABIL_MS = 1000;
 const HILANG_GRACE_MS = 800;
 const LOMPAT_POSISI_RASIO = 0.5; // pergeseran kotak wajah > 50% lebar kotak = dianggap wajah lain
 
+function ucapkanTerimaKasih(nama: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const utter = new SpeechSynthesisUtterance(`Terima kasih, ${nama}, sudah hadir`);
+  utter.lang = "id-ID";
+  window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
+  window.speechSynthesis.speak(utter);
+}
+
 export default function AbsenWajahPage() {
   const { id } = useParams<{ id: string }>();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -26,6 +34,7 @@ export default function AbsenWajahPage() {
   const [error, setError] = useState("");
   const [modelSiap, setModelSiap] = useState(false);
   const [wajahTerdeteksi, setWajahTerdeteksi] = useState(false);
+  const [suaraAktif, setSuaraAktif] = useState(false);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
@@ -81,11 +90,13 @@ export default function AbsenWajahPage() {
 
     const waktu = new Date().toLocaleTimeString("id-ID");
     try {
-      const res = await api<{ jamaah: { nama_lengkap: string } }>(
+      const res = await api<{ jamaah: { nama_lengkap: string; nama_panggilan?: string } }>(
         `/kegiatans/${id}/absensi-wajah`,
         { method: "POST", body }
       );
-      setRiwayat((r) => [{ ok: true, pesan: res.message, nama: res.data.jamaah.nama_lengkap, waktu }, ...r].slice(0, 20));
+      const { nama_lengkap, nama_panggilan } = res.data.jamaah;
+      ucapkanTerimaKasih(nama_panggilan || nama_lengkap);
+      setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
     } catch (err) {
       setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
     } finally {
@@ -158,6 +169,13 @@ export default function AbsenWajahPage() {
     return () => { batal = true; };
   }, [modelSiap, siap, scan]);
 
+  function aktifkanSuara() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // ucapan kosong dipicu langsung dari tap user — buka izin autoplay audio di Safari/iOS
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    setSuaraAktif(true);
+  }
+
   const terakhir = riwayat[0];
   const label = !modelSiap
     ? "Memuat model deteksi wajah..."
@@ -177,6 +195,15 @@ export default function AbsenWajahPage() {
       </Link>
 
       <h1 className="mt-8 text-xl font-bold sm:mt-0 sm:text-3xl">Absen Wajah</h1>
+
+      {!suaraAktif && (
+        <button
+          onClick={aktifkanSuara}
+          className="rounded-lg border border-emerald-700 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20"
+        >
+          🔊 Aktifkan Suara
+        </button>
+      )}
 
       {error && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
