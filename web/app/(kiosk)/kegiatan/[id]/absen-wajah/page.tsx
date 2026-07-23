@@ -85,6 +85,7 @@ export default function AbsenWajahPage() {
   const [modelSiap, setModelSiap] = useState(false);
   const [wajahTerdeteksi, setWajahTerdeteksi] = useState(false);
   const [suaraAktif, setSuaraAktif] = useState(false);
+  const [daftarVoice, setDaftarVoice] = useState<SpeechSynthesisVoice[] | null>(null);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
@@ -228,6 +229,14 @@ export default function AbsenWajahPage() {
     setSuaraAktif(true);
   }
 
+  // ponytail: debug sementara buat cek voice id-ID apa aja yang ada di device — hapus setelah ketahuan
+  function cekVoice() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const ambil = () => setDaftarVoice(window.speechSynthesis.getVoices());
+    ambil();
+    window.speechSynthesis.onvoiceschanged = ambil;
+  }
+
   const terakhir = riwayat[0];
   const label = !modelSiap
     ? "Memuat model deteksi wajah..."
@@ -248,13 +257,32 @@ export default function AbsenWajahPage() {
 
       <h1 className="mt-8 text-xl font-bold sm:mt-0 sm:text-3xl">Absen Wajah</h1>
 
-      {!suaraAktif && (
+      <div className="flex flex-wrap justify-center gap-2">
+        {!suaraAktif && (
+          <button
+            onClick={aktifkanSuara}
+            className="rounded-lg border border-emerald-700 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20"
+          >
+            🔊 Aktifkan Suara
+          </button>
+        )}
         <button
-          onClick={aktifkanSuara}
-          className="rounded-lg border border-emerald-700 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/20"
+          onClick={cekVoice}
+          className="rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800"
         >
-          🔊 Aktifkan Suara
+          🔍 Cek Voice TTS
         </button>
+      </div>
+
+      {daftarVoice && (
+        <div className="w-full max-w-2xl rounded-lg border border-gray-700 bg-gray-900 p-3 text-xs text-gray-300">
+          <p className="mb-1 font-semibold text-gray-400">Voice tersedia ({daftarVoice.length}):</p>
+          <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+            {daftarVoice.map((v, i) => (
+              <li key={i}>{v.lang} — {v.name}{v.default ? " (default)" : ""}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {error && (
