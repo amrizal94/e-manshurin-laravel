@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\ScopesStruktur;
 use App\Http\Controllers\Controller;
 use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 
 class JamaahController extends Controller
 {
+    use ScopesStruktur;
+
     private const STATUS_KK = ['kepala_keluarga', 'suami', 'istri', 'anak', 'menantu', 'cucu', 'orang_tua', 'mertua'];
 
     private function rules(): array
@@ -88,6 +91,7 @@ class JamaahController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate($this->rules());
+        abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
         $this->assertKepalaKeluarga($data);
 
         $jamaah = Jamaah::create($data);
@@ -111,6 +115,7 @@ class JamaahController extends Controller
         abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
 
         $data = $request->validate($this->rules());
+        abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
         $this->assertKepalaKeluarga($data, $jamaah->id);
 
         $jamaah->update($data);

@@ -136,6 +136,45 @@ class JamaahApiTest extends TestCase
         $this->assertCount(0, $response->json('data.data'));
     }
 
+    public function test_admin_kelompok_tidak_bisa_bikin_jamaah_di_kelompok_lain(): void
+    {
+        $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
+        $kelompokLain = Kelompok::create(['desa_id' => $desaLain->id, 'nama' => 'Kelompok X']);
+
+        $adminKelompok = User::factory()->create(['kelompok_id' => $this->kelompok->id]);
+        $adminKelompok->assignRole('admin');
+
+        $this->actingAs($adminKelompok)->postJson('/api/jamaahs', [
+            'kelompok_id' => $kelompokLain->id,
+            'nama_lengkap' => 'Susupan',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ])->assertForbidden();
+    }
+
+    public function test_admin_kelompok_tidak_bisa_pindahkan_jamaah_ke_kelompok_lain(): void
+    {
+        $jamaah = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Orang Kelompok 1',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
+        $kelompokLain = Kelompok::create(['desa_id' => $desaLain->id, 'nama' => 'Kelompok X']);
+
+        $adminKelompok = User::factory()->create(['kelompok_id' => $this->kelompok->id]);
+        $adminKelompok->assignRole('admin');
+
+        $this->actingAs($adminKelompok)->putJson("/api/jamaahs/{$jamaah->id}", [
+            'kelompok_id' => $kelompokLain->id,
+            'nama_lengkap' => 'Orang Kelompok 1',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ])->assertForbidden();
+    }
+
     public function test_absensi_role_cannot_manage_master_data(): void
     {
         $absensi = User::factory()->create();
