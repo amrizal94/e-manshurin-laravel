@@ -16,11 +16,13 @@ export default function WajahPage() {
   const [pesan, setPesan] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const reload = useCallback(() => {
     api<Jamaah>(`/jamaahs/${id}`)
       .then((r) => setJamaah(r.data))
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(reload, [reload]);
@@ -82,6 +84,8 @@ export default function WajahPage() {
           onChange={unggah}
         />
       </label>
+
+      {loading && <p className="text-sm text-gray-400">Memuat...</p>}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
         {jamaah?.photos.map((f) => (

@@ -205,7 +205,48 @@ export default function KegiatanDetailPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-2 sm:hidden">
+        {loading && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
+        )}
+        {!loading && peserta.length === 0 && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Tidak ada peserta</p>
+        )}
+        {peserta.map((p) => (
+          <div key={p.id} className="rounded-xl border border-gray-200 bg-white p-3">
+            <p className="font-medium text-gray-900">{p.nama_lengkap}</p>
+            <p className="text-xs text-gray-500">{KATEGORI_USIA[p.kategori_usia]} · {p.kelompok?.nama}</p>
+            <p className="mt-1 text-xs">
+              {p.absensi ? (
+                <span
+                  title={p.absensi.keterangan ?? ""}
+                  className={
+                    p.absensi.status === "hadir"
+                      ? "rounded bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700"
+                      : p.absensi.status === "izin"
+                        ? "rounded bg-amber-50 px-2 py-0.5 font-medium text-amber-700"
+                        : "rounded bg-red-50 px-2 py-0.5 font-medium text-red-700"
+                  }
+                >
+                  {p.absensi.status}{p.absensi.keterangan ? ` — ${p.absensi.keterangan}` : ""}
+                </span>
+              ) : (
+                <span className="text-gray-400">belum tercatat</span>
+              )}
+            </p>
+            <div className="mt-2 flex gap-1 border-t border-gray-100 pt-2">
+              <button onClick={() => tandai(p.id, "hadir")}
+                className={btn(p.absensi?.status === "hadir", "bg-emerald-600 text-white")}>Hadir</button>
+              <button onClick={() => tandai(p.id, "izin")}
+                className={btn(p.absensi?.status === "izin", "bg-amber-500 text-white")}>Izin</button>
+              <button onClick={() => tandai(p.id, "alpha")}
+                className={btn(p.absensi?.status === "alpha", "bg-red-600 text-white")}>Alpha</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white sm:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>
