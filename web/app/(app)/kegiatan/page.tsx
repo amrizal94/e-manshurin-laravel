@@ -18,6 +18,8 @@ interface Kegiatan {
   absensis_count: number;
 }
 
+const PER_PAGE = 25;
+
 const KOSONG = {
   nama: "", jenis_pengajian: "umum", target: "", tanggal: "", jam_mulai: "", jam_selesai: "",
 };
@@ -29,12 +31,19 @@ export default function KegiatanPage() {
   const [kelompoks, setKelompoks] = useState<Opsi[]>([]);
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const reload = useCallback(() => {
-    api<{ data: Kegiatan[] }>("/kegiatans")
-      .then((res) => setRows(res.data.data))
+    api<{ data: Kegiatan[]; last_page: number; total: number }>(`/kegiatans?page=${page}`)
+      .then((res) => {
+        setRows(res.data.data);
+        setLastPage(res.data.last_page);
+        setTotal(res.data.total);
+      })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [page]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -130,6 +139,33 @@ export default function KegiatanPage() {
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>
+            Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total} kegiatan
+          </span>
+          {lastPage > 1 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+              >
+                ← Sebelumnya
+              </button>
+              <span>Halaman {page} / {lastPage}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+                disabled={page >= lastPage}
+                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+              >
+                Selanjutnya →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {form && (
         <div className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
