@@ -32,7 +32,10 @@ class FaceController extends Controller
         }
         abort_unless($response->successful(), 502, 'Face service error');
 
-        return $response->json();
+        $json = $response->json();
+        abort_unless(is_array($json['descriptor'] ?? null), 502, 'Face service mengembalikan data tidak valid');
+
+        return $json;
     }
 
     /** Cosine similarity — embedding sudah L2-normalized, jadi cukup dot product. */
