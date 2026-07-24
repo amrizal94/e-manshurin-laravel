@@ -121,6 +121,7 @@ export default function KegiatanDetailPage() {
 
   return (
     <div className="space-y-4">
+      <Link href="/kegiatan" className="text-sm text-gray-500 hover:text-gray-700">← Kembali ke Kegiatan</Link>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       {kegiatan && (
