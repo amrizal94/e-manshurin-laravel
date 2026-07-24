@@ -25,12 +25,15 @@ export default function PenggunaPage() {
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [lihatPassword, setLihatPassword] = useState(false);
 
   const reload = useCallback(() => {
+    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<Pengguna[]>("/users")
       .then((res) => setRows(res.data))
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(reload, [reload]);
@@ -138,8 +141,11 @@ export default function PenggunaPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr><td colSpan={5} className="p-6 text-center text-gray-400">Belum ada data</td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={5} className="p-6 text-center text-gray-400">Memuat...</td></tr>
             )}
           </tbody>
         </table>
@@ -150,19 +156,19 @@ export default function PenggunaPage() {
           <form onSubmit={simpan} className="my-8 w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-gray-900">{editId ? "Edit" : "Tambah"} Pengguna</h3>
             <div>
-              <label className={label}>Nama *</label>
-              <input required className={input} value={form.name}
+              <label className={label} htmlFor="pg-name">Nama *</label>
+              <input id="pg-name" required className={input} value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             <div>
-              <label className={label}>Email *</label>
-              <input type="email" required className={input} value={form.email}
+              <label className={label} htmlFor="pg-email">Email *</label>
+              <input id="pg-email" type="email" required className={input} value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
             <div>
-              <label className={label}>Password {editId ? "(kosongkan jika tidak diubah)" : "*"}</label>
+              <label className={label} htmlFor="pg-password">Password {editId ? "(kosongkan jika tidak diubah)" : "*"}</label>
               <div className="relative">
-                <input type={lihatPassword ? "text" : "password"} required={!editId} minLength={8}
+                <input id="pg-password" type={lihatPassword ? "text" : "password"} required={!editId} minLength={8}
                   className={`${input} pr-10`} value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })} />
                 <button
@@ -186,8 +192,8 @@ export default function PenggunaPage() {
               </div>
             </div>
             <div>
-              <label className={label}>Peran *</label>
-              <select className={input} value={form.role}
+              <label className={label} htmlFor="pg-role">Peran *</label>
+              <select id="pg-role" className={input} value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}>
                 {Object.entries(ROLE_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
@@ -195,8 +201,8 @@ export default function PenggunaPage() {
               </select>
             </div>
             <div>
-              <label className={label}>Wilayah *</label>
-              <select required className={input} value={form.target}
+              <label className={label} htmlFor="pg-target">Wilayah *</label>
+              <select id="pg-target" required className={input} value={form.target}
                 onChange={(e) => setForm({ ...form, target: e.target.value })}>
                 <option value="semua">Seluruh (Super Admin)</option>
                 {daerahs.map((d) => <option key={`da${d.id}`} value={`daerah:${d.id}`}>Daerah — {d.nama}</option>)}

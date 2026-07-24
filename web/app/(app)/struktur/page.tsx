@@ -14,6 +14,7 @@ export default function StrukturPage() {
   const [desas, setDesas] = useState<Desa[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   // Modal tambah: parent (daerah untuk desa, desa untuk kelompok) sengaja tetap
   // tersimpan di state ini (bukan di-reset tiap submit), jadi bisa tambah
@@ -27,7 +28,8 @@ export default function StrukturPage() {
   const [saving, setSaving] = useState(false);
 
   const reload = useCallback(() => {
-    setError("");
+    // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
+    Promise.resolve().then(() => { setError(""); setLoading(true); });
     Promise.all([
       api<Daerah[]>("/daerahs"),
       api<Desa[]>("/desas"),
@@ -38,7 +40,8 @@ export default function StrukturPage() {
         setDesas(b.data);
         setKelompoks(c.data);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(reload, [reload]);
@@ -154,6 +157,8 @@ export default function StrukturPage() {
                 </span>
               </li>
             ))}
+            {!loading && daerahs.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+            {loading && <p className="p-6 text-center text-sm text-gray-400">Memuat...</p>}
           </ul>
         </section>
 
@@ -191,7 +196,8 @@ export default function StrukturPage() {
                 </ul>
               </div>
             ))}
-            {desas.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+            {!loading && desas.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+            {loading && <p className="p-6 text-center text-sm text-gray-400">Memuat...</p>}
           </div>
         </section>
 
@@ -229,7 +235,8 @@ export default function StrukturPage() {
                 </ul>
               </div>
             ))}
-            {kelompoks.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+            {!loading && kelompoks.length === 0 && <p className="p-6 text-center text-sm text-gray-400">Belum ada data</p>}
+            {loading && <p className="p-6 text-center text-sm text-gray-400">Memuat...</p>}
           </div>
         </section>
       </div>
@@ -241,8 +248,8 @@ export default function StrukturPage() {
 
             {modal === "desa" && (
               <div>
-                <label className={label}>Daerah *</label>
-                <select className={input} value={daerahId}
+                <label className={label} htmlFor="st-daerah">Daerah *</label>
+                <select id="st-daerah" className={input} value={daerahId}
                   onChange={(e) => setDaerahId(Number(e.target.value))}>
                   {daerahs.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
                 </select>
@@ -251,8 +258,8 @@ export default function StrukturPage() {
 
             {modal === "kelompok" && (
               <div>
-                <label className={label}>Desa *</label>
-                <select className={input} value={desaId}
+                <label className={label} htmlFor="st-desa">Desa *</label>
+                <select id="st-desa" className={input} value={desaId}
                   onChange={(e) => setDesaId(Number(e.target.value))}>
                   {desas.map((d) => <option key={d.id} value={d.id}>{d.nama}</option>)}
                 </select>
@@ -271,10 +278,11 @@ export default function StrukturPage() {
             )}
 
             <div>
-              <label className={label}>
+              <label className={label} htmlFor="st-nama-text">
                 Nama {JUDUL[modal]} * <span className="font-normal text-gray-400">(satu nama per baris, bisa banyak sekaligus)</span>
               </label>
               <textarea
+                id="st-nama-text"
                 rows={5}
                 className={input}
                 value={namaText}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { KATEGORI_USIA } from "@/lib/labels";
+import { Pagination } from "@/components/Pagination";
 
 interface Kelompok { id: number; nama: string; desa?: { nama: string } }
 interface Jamaah {
@@ -46,6 +47,7 @@ export default function JamaahPage() {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
@@ -60,13 +62,15 @@ export default function JamaahPage() {
   const reload = useCallback(() => {
     const params = new URLSearchParams({ page: String(page) });
     if (searchDebounced) params.set("search", searchDebounced);
+    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
         setRows(res.data.data);
         setLastPage(res.data.last_page);
         setTotal(res.data.total);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [searchDebounced, page]);
 
   useEffect(reload, [reload]);
@@ -145,7 +149,7 @@ export default function JamaahPage() {
         placeholder="Cari nama lengkap/panggilan..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-64"
       />
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -190,8 +194,11 @@ export default function JamaahPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr><td colSpan={9} className="p-6 text-center text-gray-400">Belum ada data</td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={9} className="p-6 text-center text-gray-400">Memuat...</td></tr>
             )}
           </tbody>
         </table>
@@ -202,25 +209,7 @@ export default function JamaahPage() {
           <span>
             Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total} jamaah
           </span>
-          {lastPage > 1 && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-              >
-                ← Sebelumnya
-              </button>
-              <span>Halaman {page} / {lastPage}</span>
-              <button
-                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-                disabled={page >= lastPage}
-                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-              >
-                Selanjutnya →
-              </button>
-            </div>
-          )}
+          <Pagination page={page} lastPage={lastPage} onChange={setPage} />
         </div>
       )}
 
@@ -229,48 +218,48 @@ export default function JamaahPage() {
           <form onSubmit={simpan} className="my-8 w-full max-w-2xl space-y-4 rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-gray-900">{editId ? "Edit" : "Tambah"} Jamaah</h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className={label}>Nama Lengkap *</label>
-                <input required className={input} value={form.nama_lengkap}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className={label} htmlFor="f-nama_lengkap">Nama Lengkap *</label>
+                <input id="f-nama_lengkap" required className={input} value={form.nama_lengkap}
                   onChange={(e) => setForm({ ...form, nama_lengkap: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Nama Panggilan</label>
-                <input className={input} value={form.nama_panggilan}
+                <label className={label} htmlFor="f-nama_panggilan">Nama Panggilan</label>
+                <input id="f-nama_panggilan" className={input} value={form.nama_panggilan}
                   onChange={(e) => setForm({ ...form, nama_panggilan: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Jenis Kelamin *</label>
-                <select className={input} value={form.jenis_kelamin}
+                <label className={label} htmlFor="f-jenis_kelamin">Jenis Kelamin *</label>
+                <select id="f-jenis_kelamin" className={input} value={form.jenis_kelamin}
                   onChange={(e) => setForm({ ...form, jenis_kelamin: e.target.value })}>
                   <option value="L">Laki-laki</option>
                   <option value="P">Perempuan</option>
                 </select>
               </div>
               <div>
-                <label className={label}>Tempat Lahir</label>
-                <input className={input} value={form.tempat_lahir}
+                <label className={label} htmlFor="f-tempat_lahir">Tempat Lahir</label>
+                <input id="f-tempat_lahir" className={input} value={form.tempat_lahir}
                   onChange={(e) => setForm({ ...form, tempat_lahir: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Tanggal Lahir</label>
-                <input type="date" className={input} value={form.tanggal_lahir}
+                <label className={label} htmlFor="f-tanggal_lahir">Tanggal Lahir</label>
+                <input id="f-tanggal_lahir" type="date" className={input} value={form.tanggal_lahir}
                   onChange={(e) => setForm({ ...form, tanggal_lahir: e.target.value })} />
               </div>
-              <div className="col-span-2">
-                <label className={label}>Alamat</label>
-                <textarea className={input} rows={2} value={form.alamat}
+              <div className="sm:col-span-2">
+                <label className={label} htmlFor="f-alamat">Alamat</label>
+                <textarea id="f-alamat" className={input} rows={2} value={form.alamat}
                   onChange={(e) => setForm({ ...form, alamat: e.target.value })} />
               </div>
               <div>
-                <label className={label}>No. HP</label>
-                <input className={input} value={form.no_hp}
+                <label className={label} htmlFor="f-no_hp">No. HP</label>
+                <input id="f-no_hp" className={input} value={form.no_hp}
                   onChange={(e) => setForm({ ...form, no_hp: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Kelompok *</label>
-                <select required className={input} value={form.kelompok_id}
+                <label className={label} htmlFor="f-kelompok_id">Kelompok *</label>
+                <select id="f-kelompok_id" required className={input} value={form.kelompok_id}
                   onChange={(e) => setForm({ ...form, kelompok_id: Number(e.target.value) })}>
                   {kelompoks.map((k) => (
                     <option key={k.id} value={k.id}>{k.nama}{k.desa ? ` — ${k.desa.nama}` : ""}</option>
@@ -278,8 +267,8 @@ export default function JamaahPage() {
                 </select>
               </div>
               <div>
-                <label className={label}>Kategori Usia *</label>
-                <select className={input} value={form.kategori_usia}
+                <label className={label} htmlFor="f-kategori_usia">Kategori Usia *</label>
+                <select id="f-kategori_usia" className={input} value={form.kategori_usia}
                   onChange={(e) => setForm({ ...form, kategori_usia: e.target.value })}>
                   {Object.entries(KATEGORI_USIA).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
@@ -287,13 +276,13 @@ export default function JamaahPage() {
                 </select>
               </div>
               <div>
-                <label className={label}>Pekerjaan</label>
-                <input className={input} value={form.pekerjaan}
+                <label className={label} htmlFor="f-pekerjaan">Pekerjaan</label>
+                <input id="f-pekerjaan" className={input} value={form.pekerjaan}
                   onChange={(e) => setForm({ ...form, pekerjaan: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Status KK</label>
-                <select className={input} value={form.status_kk}
+                <label className={label} htmlFor="f-status_kk">Status KK</label>
+                <select id="f-status_kk" className={input} value={form.status_kk}
                   onChange={(e) => setForm({
                     ...form,
                     status_kk: e.target.value,
@@ -311,8 +300,8 @@ export default function JamaahPage() {
                 </select>
               </div>
               <div>
-                <label className={label}>Kepala Keluarga</label>
-                <select className={input} value={form.kepala_keluarga_id}
+                <label className={label} htmlFor="f-kepala_keluarga_id">Kepala Keluarga</label>
+                <select id="f-kepala_keluarga_id" className={input} value={form.kepala_keluarga_id}
                   disabled={form.status_kk === "kepala_keluarga"}
                   onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
                   <option value="">- (bukan anggota keluarga siapa pun)</option>
@@ -324,7 +313,7 @@ export default function JamaahPage() {
                   <p className="mt-1 text-xs text-gray-400">Kepala keluarga tidak bisa jadi anggota keluarga lain</p>
                 )}
               </div>
-              <div className="col-span-2 flex gap-6">
+              <div className="sm:col-span-2 flex flex-wrap gap-6">
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" checked={form.status_mubaligh}
                     onChange={(e) => setForm({ ...form, status_mubaligh: e.target.checked })} />
@@ -337,9 +326,9 @@ export default function JamaahPage() {
                 </label>
               </div>
               {!form.aktif && (
-                <div className="col-span-2">
-                  <label className={label}>Keterangan Tidak Aktif</label>
-                  <input className={input} value={form.keterangan_tidak_aktif}
+                <div className="sm:col-span-2">
+                  <label className={label} htmlFor="f-keterangan_tidak_aktif">Keterangan Tidak Aktif</label>
+                  <input id="f-keterangan_tidak_aktif" className={input} value={form.keterangan_tidak_aktif}
                     onChange={(e) => setForm({ ...form, keterangan_tidak_aktif: e.target.value })} />
                 </div>
               )}

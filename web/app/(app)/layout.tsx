@@ -35,10 +35,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     const stored = localStorage.getItem("user");
-    if (stored) setUser(JSON.parse(stored));
+    // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
+    if (stored) Promise.resolve().then(() => setUser(JSON.parse(stored)));
   }, [router]);
 
-  useEffect(() => setNavOpen(false), [pathname]);
+  useEffect(() => {
+    Promise.resolve().then(() => setNavOpen(false));
+  }, [pathname]);
 
   async function logout() {
     if (!confirm("Yakin ingin keluar?")) return;

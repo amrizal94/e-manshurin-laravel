@@ -46,6 +46,7 @@ export default function PengaturanPage() {
         {pesan && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-700">{pesan}</p>}
         <textarea
           rows={3}
+          aria-label="Template balasan WA"
           value={template}
           onChange={(e) => setTemplate(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"

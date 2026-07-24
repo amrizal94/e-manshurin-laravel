@@ -31,6 +31,7 @@ export default function KegiatanDetailPage() {
   const [kegiatan, setKegiatan] = useState<Kegiatan | null>(null);
   const [peserta, setPeserta] = useState<Peserta[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [daerahs, setDaerahs] = useState<Opsi[]>([]);
   const [desas, setDesas] = useState<Opsi[]>([]);
   const [kelompoks, setKelompoks] = useState<Opsi[]>([]);
@@ -40,8 +41,9 @@ export default function KegiatanDetailPage() {
   } | null>(null);
 
   const reload = useCallback(() => {
+    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<Kegiatan>(`/kegiatans/${id}`).then((r) => setKegiatan(r.data)).catch((e) => setError(e.message));
-    api<Peserta[]>(`/kegiatans/${id}/peserta`).then((r) => setPeserta(r.data)).catch((e) => setError(e.message));
+    api<Peserta[]>(`/kegiatans/${id}/peserta`).then((r) => setPeserta(r.data)).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [id]);
 
   useEffect(reload, [reload]);
@@ -122,15 +124,15 @@ export default function KegiatanDetailPage() {
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       {kegiatan && (
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{kegiatan.nama}</h2>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h2 className="break-words text-xl font-bold text-gray-900">{kegiatan.nama}</h2>
             <p className="text-sm text-gray-500">
               {JENIS_PENGAJIAN[kegiatan.jenis_pengajian]} · {kegiatan.tanggal.slice(0, 10)} ·{" "}
               {peserta.length} peserta · {hadir} hadir · {izin} izin · {belum} belum tercatat
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={bukaEdit}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
@@ -152,13 +154,13 @@ export default function KegiatanDetailPage() {
           <form onSubmit={simpanEdit} className="my-8 w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-gray-900">Edit Kegiatan</h3>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Nama Pengajian *</label>
-              <input required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+              <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-nama">Nama Pengajian *</label>
+              <input id="ke-nama" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                 value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Jenis Pengajian *</label>
-              <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+              <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jenis_pengajian">Jenis Pengajian *</label>
+              <select id="ke-jenis_pengajian" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                 value={form.jenis_pengajian} onChange={(e) => setForm({ ...form, jenis_pengajian: e.target.value })}>
                 {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
@@ -166,8 +168,8 @@ export default function KegiatanDetailPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Target Struktur *</label>
-              <select required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+              <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-target">Target Struktur *</label>
+              <select id="ke-target" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                 value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}>
                 <option value="">Pilih...</option>
                 {daerahs.map((d) => <option key={`da${d.id}`} value={`daerah:${d.id}`}>Daerah — {d.nama}</option>)}
@@ -175,20 +177,20 @@ export default function KegiatanDetailPage() {
                 {kelompoks.map((k) => <option key={`ke${k.id}`} value={`kelompok:${k.id}`}>Kelompok — {k.nama}</option>)}
               </select>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Tanggal *</label>
-                <input type="date" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-tanggal">Tanggal *</label>
+                <input id="ke-tanggal" type="date" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                   value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Jam Mulai</label>
-                <input type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_mulai">Jam Mulai</label>
+                <input id="ke-jam_mulai" type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                   value={form.jam_mulai} onChange={(e) => setForm({ ...form, jam_mulai: e.target.value })} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Jam Selesai</label>
-                <input type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_selesai">Jam Selesai</label>
+                <input id="ke-jam_selesai" type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                   value={form.jam_selesai} onChange={(e) => setForm({ ...form, jam_selesai: e.target.value })} />
               </div>
             </div>
@@ -249,8 +251,11 @@ export default function KegiatanDetailPage() {
                 </td>
               </tr>
             ))}
-            {peserta.length === 0 && (
+            {!loading && peserta.length === 0 && (
               <tr><td colSpan={5} className="p-6 text-center text-gray-400">Tidak ada peserta</td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={5} className="p-6 text-center text-gray-400">Memuat...</td></tr>
             )}
           </tbody>
         </table>

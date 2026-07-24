@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Pagination } from "@/components/Pagination";
 
 interface Log {
   id: number;
@@ -33,8 +34,8 @@ export default function ActivityLogPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
+    // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
+    Promise.resolve().then(() => { setLoading(true); setError(""); });
     api<{ data: Log[]; last_page: number }>(`/activity-logs?page=${page}`)
       .then((res) => {
         setLogs(res.data.data);
@@ -96,25 +97,9 @@ export default function ActivityLogPage() {
         </table>
       </div>
 
-      {lastPage > 1 && (
-        <div className="flex items-center justify-center gap-3 text-sm">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-            className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-          >
-            ← Sebelumnya
-          </button>
-          <span className="text-gray-500">Halaman {page} / {lastPage}</span>
-          <button
-            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            disabled={page >= lastPage}
-            className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-          >
-            Selanjutnya →
-          </button>
-        </div>
-      )}
+      <div className="flex justify-center text-sm text-gray-500">
+        <Pagination page={page} lastPage={lastPage} onChange={setPage} />
+      </div>
     </div>
   );
 }

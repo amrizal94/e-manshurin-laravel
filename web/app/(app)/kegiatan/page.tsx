@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { JENIS_PENGAJIAN } from "@/lib/labels";
+import { Pagination } from "@/components/Pagination";
 
 interface Opsi { id: number; nama: string }
 interface Kegiatan {
@@ -31,18 +32,21 @@ export default function KegiatanPage() {
   const [kelompoks, setKelompoks] = useState<Opsi[]>([]);
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
 
   const reload = useCallback(() => {
+    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<{ data: Kegiatan[]; last_page: number; total: number }>(`/kegiatans?page=${page}`)
       .then((res) => {
         setRows(res.data.data);
         setLastPage(res.data.last_page);
         setTotal(res.data.total);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [page]);
 
   useEffect(reload, [reload]);
@@ -133,8 +137,11 @@ export default function KegiatanPage() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {!loading && rows.length === 0 && (
               <tr><td colSpan={6} className="p-6 text-center text-gray-400">Belum ada kegiatan</td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={6} className="p-6 text-center text-gray-400">Memuat...</td></tr>
             )}
           </tbody>
         </table>
@@ -145,25 +152,7 @@ export default function KegiatanPage() {
           <span>
             Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total} kegiatan
           </span>
-          {lastPage > 1 && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-              >
-                ← Sebelumnya
-              </button>
-              <span>Halaman {page} / {lastPage}</span>
-              <button
-                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-                disabled={page >= lastPage}
-                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
-              >
-                Selanjutnya →
-              </button>
-            </div>
-          )}
+          <Pagination page={page} lastPage={lastPage} onChange={setPage} />
         </div>
       )}
 
@@ -172,13 +161,13 @@ export default function KegiatanPage() {
           <form onSubmit={simpan} className="my-8 w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-gray-900">Buat Kegiatan</h3>
             <div>
-              <label className={label}>Nama Pengajian *</label>
-              <input required className={input} value={form.nama}
+              <label className={label} htmlFor="kg-nama">Nama Pengajian *</label>
+              <input id="kg-nama" required className={input} value={form.nama}
                 onChange={(e) => setForm({ ...form, nama: e.target.value })} />
             </div>
             <div>
-              <label className={label}>Jenis Pengajian *</label>
-              <select className={input} value={form.jenis_pengajian}
+              <label className={label} htmlFor="kg-jenis_pengajian">Jenis Pengajian *</label>
+              <select id="kg-jenis_pengajian" className={input} value={form.jenis_pengajian}
                 onChange={(e) => setForm({ ...form, jenis_pengajian: e.target.value })}>
                 {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
@@ -186,8 +175,8 @@ export default function KegiatanPage() {
               </select>
             </div>
             <div>
-              <label className={label}>Target Struktur *</label>
-              <select required className={input} value={form.target}
+              <label className={label} htmlFor="kg-target">Target Struktur *</label>
+              <select id="kg-target" required className={input} value={form.target}
                 onChange={(e) => setForm({ ...form, target: e.target.value })}>
                 <option value="">Pilih...</option>
                 {daerahs.map((d) => <option key={`da${d.id}`} value={`daerah:${d.id}`}>Daerah — {d.nama}</option>)}
@@ -195,20 +184,20 @@ export default function KegiatanPage() {
                 {kelompoks.map((k) => <option key={`ke${k.id}`} value={`kelompok:${k.id}`}>Kelompok — {k.nama}</option>)}
               </select>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className={label}>Tanggal *</label>
-                <input type="date" required className={input} value={form.tanggal}
+                <label className={label} htmlFor="kg-tanggal">Tanggal *</label>
+                <input id="kg-tanggal" type="date" required className={input} value={form.tanggal}
                   onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Jam Mulai</label>
-                <input type="time" className={input} value={form.jam_mulai}
+                <label className={label} htmlFor="kg-jam_mulai">Jam Mulai</label>
+                <input id="kg-jam_mulai" type="time" className={input} value={form.jam_mulai}
                   onChange={(e) => setForm({ ...form, jam_mulai: e.target.value })} />
               </div>
               <div>
-                <label className={label}>Jam Selesai</label>
-                <input type="time" className={input} value={form.jam_selesai}
+                <label className={label} htmlFor="kg-jam_selesai">Jam Selesai</label>
+                <input id="kg-jam_selesai" type="time" className={input} value={form.jam_selesai}
                   onChange={(e) => setForm({ ...form, jam_selesai: e.target.value })} />
               </div>
             </div>

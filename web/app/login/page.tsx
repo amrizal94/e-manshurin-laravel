@@ -95,10 +95,11 @@ function LoginForm() {
             <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
           )}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="lg-email" className="mb-1 block text-sm font-medium text-gray-700">
               Email
             </label>
             <input
+              id="lg-email"
               type="email"
               required
               autoComplete="username"
@@ -108,11 +109,12 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="lg-password" className="mb-1 block text-sm font-medium text-gray-700">
               Password
             </label>
             <div className="relative">
               <input
+                id="lg-password"
                 type={lihatPassword ? "text" : "password"}
                 required
                 autoComplete="current-password"
