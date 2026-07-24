@@ -28,6 +28,8 @@ interface Jamaah {
   photos_count?: number;
 }
 
+const PER_PAGE = 25;
+
 const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
@@ -40,21 +42,32 @@ export default function JamaahPage() {
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setSearchDebounced(search), 300);
+    const t = setTimeout(() => {
+      setSearchDebounced(search);
+      setPage(1);
+    }, 300);
     return () => clearTimeout(t);
   }, [search]);
 
   const reload = useCallback(() => {
-    const params = searchDebounced ? `?search=${encodeURIComponent(searchDebounced)}` : "";
-    api<{ data: Jamaah[] }>(`/jamaahs${params}`)
-      .then((res) => setRows(res.data.data))
+    const params = new URLSearchParams({ page: String(page) });
+    if (searchDebounced) params.set("search", searchDebounced);
+    api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
+      .then((res) => {
+        setRows(res.data.data);
+        setLastPage(res.data.last_page);
+        setTotal(res.data.total);
+      })
       .catch((err) => setError(err.message));
-  }, [searchDebounced]);
+  }, [searchDebounced, page]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -139,6 +152,7 @@ export default function JamaahPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>
+              <th className="p-3">No</th>
               <th className="p-3">Nama</th>
               <th className="p-3">L/P</th>
               <th className="p-3">Usia</th>
@@ -150,8 +164,9 @@ export default function JamaahPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map((j) => (
+            {rows.map((j, i) => (
               <tr key={j.id}>
+                <td className="p-3 text-gray-400">{(page - 1) * PER_PAGE + i + 1}</td>
                 <td className="p-3 font-medium text-gray-900">{j.nama_lengkap}</td>
                 <td className="p-3">{j.jenis_kelamin}</td>
                 <td className="p-3">{j.usia ?? "-"}</td>
@@ -176,11 +191,38 @@ export default function JamaahPage() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="p-6 text-center text-gray-400">Belum ada data</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-gray-400">Belum ada data</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {total > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>
+            Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total} jamaah
+          </span>
+          {lastPage > 1 && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+              >
+                ← Sebelumnya
+              </button>
+              <span>Halaman {page} / {lastPage}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+                disabled={page >= lastPage}
+                className="rounded border border-gray-300 px-3 py-1 disabled:opacity-40"
+              >
+                Selanjutnya →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {form && (
         <div className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-black/30 p-4">
