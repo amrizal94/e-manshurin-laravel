@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import * as faceapi from "face-api.js";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 interface Hasil {
   ok: boolean;
@@ -80,6 +80,7 @@ export default function AbsenWajahPage() {
   const [modelSiap, setModelSiap] = useState(false);
   const [wajahTerdeteksi, setWajahTerdeteksi] = useState(false);
   const [suaraAktif, setSuaraAktif] = useState(false);
+  const [sesiHabis, setSesiHabis] = useState(false);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
@@ -158,7 +159,11 @@ export default function AbsenWajahPage() {
       ucapkanTerimaKasih(nama, jenis_kelamin, usia, kategori_usia);
       setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
     } catch (err) {
-      setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
+      if (err instanceof ApiError && err.status === 401) {
+        setSesiHabis(true);
+      } else {
+        setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
+      }
     } finally {
       prosesRef.current = false;
       setProses(false);
@@ -167,7 +172,7 @@ export default function AbsenWajahPage() {
 
   // Auto-scan begitu wajah terdeteksi stabil — kiosk diawasi panitia, tidak perlu verifikasi kedip.
   useEffect(() => {
-    if (!modelSiap || !siap) return;
+    if (!modelSiap || !siap || sesiHabis) return;
     let batal = false;
 
     async function loop() {
@@ -221,7 +226,7 @@ export default function AbsenWajahPage() {
     loop();
 
     return () => { batal = true; };
-  }, [modelSiap, siap, scan]);
+  }, [modelSiap, siap, scan, sesiHabis]);
 
   function aktifkanSuara() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -238,6 +243,23 @@ export default function AbsenWajahPage() {
       : wajahTerdeteksi
         ? "Wajah terdeteksi, tahan sebentar..."
         : "Arahkan wajah ke kamera...";
+
+  if (sesiHabis) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center text-white">
+        <p className="text-2xl font-bold">Sesi berakhir</p>
+        <p className="max-w-sm text-sm text-gray-400">
+          Sesi login sudah tidak berlaku. Absen wajah dihentikan sementara — login ulang untuk melanjutkan.
+        </p>
+        <Link
+          href={`/login?redirect=${encodeURIComponent(`/kegiatan/${id}/absen-wajah`)}`}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-700"
+        >
+          Login Ulang
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col items-center gap-4 p-4 text-white sm:gap-6 sm:p-8">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 
 const FITUR = [
@@ -13,7 +13,17 @@ const FITUR = [
 ];
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tujuan = searchParams.get("redirect") || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,8 +31,8 @@ export default function LoginPage() {
   const [lihatPassword, setLihatPassword] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem("token")) router.replace("/dashboard");
-  }, [router]);
+    if (localStorage.getItem("token")) router.replace(tujuan);
+  }, [router, tujuan]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +45,7 @@ export default function LoginPage() {
       });
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      router.push("/dashboard");
+      router.push(tujuan);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login gagal");
     } finally {
