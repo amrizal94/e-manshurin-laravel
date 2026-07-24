@@ -111,7 +111,36 @@ export default function PenggunaPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-2 sm:hidden">
+        {loading && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
+        )}
+        {!loading && rows.length === 0 && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Belum ada data</p>
+        )}
+        {rows.map((u) => (
+          <div key={u.id} className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-900">{u.name}</p>
+                <p className="truncate text-xs text-gray-500">{u.email}</p>
+              </div>
+              <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                {ROLE_LABEL[u.roles[0]?.name] ?? u.roles[0]?.name ?? "-"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-gray-400">
+              {u.kelompok ? `Kelompok ${u.kelompok.nama}` : u.desa ? `Desa ${u.desa.nama}` : u.daerah ? `Daerah ${u.daerah.nama}` : "Seluruh"}
+            </p>
+            <div className="mt-2 flex justify-end gap-3 border-t border-gray-100 pt-2 text-xs">
+              <button onClick={() => buka(u)} className="text-gray-400 hover:text-gray-700">Edit</button>
+              <button onClick={() => hapus(u)} className="text-red-400 hover:text-red-700">Hapus</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white sm:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>

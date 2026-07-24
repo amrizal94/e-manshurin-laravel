@@ -107,7 +107,34 @@ export default function KegiatanPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-2 sm:hidden">
+        {loading && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
+        )}
+        {!loading && rows.length === 0 && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Belum ada kegiatan</p>
+        )}
+        {rows.map((k) => (
+          <div key={k.id} className="rounded-xl border border-gray-200 bg-white p-3">
+            <Link href={`/kegiatan/${k.id}`} className="font-medium text-gray-900 hover:text-emerald-700">{k.nama}</Link>
+            <p className="text-xs text-gray-500">
+              {k.tanggal.slice(0, 10)}{k.jam_mulai ? ` ${k.jam_mulai.slice(0, 5)}` : ""} · {JENIS_PENGAJIAN[k.jenis_pengajian]}
+            </p>
+            <p className="text-xs text-gray-400">
+              {k.kelompok ? `Kelompok ${k.kelompok.nama}` : k.desa ? `Desa ${k.desa.nama}` : k.daerah ? `Daerah ${k.daerah.nama}` : "-"}
+            </p>
+            <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
+              <span className="text-gray-400">Tercatat: {k.absensis_count}</span>
+              <div className="flex gap-3">
+                <Link href={`/kegiatan/${k.id}`} className="font-semibold text-emerald-600 hover:text-emerald-800">Absensi</Link>
+                <button onClick={() => hapus(k)} className="text-red-400 hover:text-red-700">Hapus</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white sm:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>

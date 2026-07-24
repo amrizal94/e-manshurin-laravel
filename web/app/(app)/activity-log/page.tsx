@@ -52,7 +52,35 @@ export default function ActivityLogPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-2 sm:hidden">
+        {!loading && logs.length === 0 && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-400">Belum ada aktivitas tercatat</p>
+        )}
+        {logs.map((log) => (
+          <div key={log.id} className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                {EVENT_LABEL[log.event] ?? log.description}
+              </span>
+              <span className="whitespace-nowrap text-xs text-gray-500">
+                {new Date(log.created_at).toLocaleString("id-ID")}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-gray-900">{log.causer?.name ?? "Sistem"}</p>
+            <p className="text-xs text-gray-700">
+              {subjectLabel(log.subject_type)}
+              {log.subject_id ? ` #${log.subject_id}` : ""}
+            </p>
+            <p className="truncate text-xs text-gray-400" title={JSON.stringify(log.properties)}>
+              {log.event === "updated" && log.properties.attributes
+                ? Object.keys(log.properties.attributes).join(", ")
+                : "-"}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white sm:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>

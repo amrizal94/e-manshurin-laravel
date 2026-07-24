@@ -152,7 +152,47 @@ export default function JamaahPage() {
         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-64"
       />
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <div className="space-y-2 sm:hidden">
+        {loading && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
+        )}
+        {!loading && rows.length === 0 && (
+          <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Belum ada data</p>
+        )}
+        {rows.map((j, i) => (
+          <div key={j.id} className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-900">
+                  {(page - 1) * PER_PAGE + i + 1}. {j.nama_lengkap}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {j.jenis_kelamin} · {j.usia ?? "-"} th · {KATEGORI_USIA[j.kategori_usia]}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {j.kelompok?.nama}
+                  {j.kelompok?.desa && ` — ${j.kelompok.desa.nama}`}
+                </p>
+              </div>
+              {j.aktif ? (
+                <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">Aktif</span>
+              ) : (
+                <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500" title={j.keterangan_tidak_aktif ?? ""}>Tidak Aktif</span>
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
+              <span className="text-gray-400">Foto: {j.photos_count ?? 0}</span>
+              <div className="flex gap-3">
+                <Link href={`/jamaah/${j.id}/wajah`} className="font-semibold text-emerald-600 hover:text-emerald-800">Wajah</Link>
+                <button onClick={() => buka(j)} className="text-gray-400 hover:text-gray-700">Edit</button>
+                <button onClick={() => hapus(j)} className="text-red-400 hover:text-red-700">Hapus</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-gray-200 bg-white sm:block">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs text-gray-500">
             <tr>
