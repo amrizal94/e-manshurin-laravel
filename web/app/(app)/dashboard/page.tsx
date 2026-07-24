@@ -49,6 +49,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Jamaah Aktif" value={data.total_jamaah} />
         <StatTile label="Mubaligh" value={data.total_mubaligh} />
+        {data.jumlah_daerah !== null && (
+          <StatTile label="Jumlah Daerah" value={data.jumlah_daerah} />
+        )}
         {data.jumlah_desa !== null && (
           <StatTile label="Jumlah Desa" value={data.jumlah_desa} />
         )}

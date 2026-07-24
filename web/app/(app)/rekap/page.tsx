@@ -55,16 +55,16 @@ export default function RekapPage() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Dari</label>
-          <input type="date" className={input} value={dari} onChange={(e) => setDari(e.target.value)} />
+          <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-dari">Dari</label>
+          <input id="rk-dari" type="date" className={input} value={dari} onChange={(e) => setDari(e.target.value)} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Sampai</label>
-          <input type="date" className={input} value={sampai} onChange={(e) => setSampai(e.target.value)} />
+          <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-sampai">Sampai</label>
+          <input id="rk-sampai" type="date" className={input} value={sampai} onChange={(e) => setSampai(e.target.value)} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Jenis Pengajian</label>
-          <select className={input} value={jenis} onChange={(e) => setJenis(e.target.value)}>
+          <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-jenis">Jenis Pengajian</label>
+          <select id="rk-jenis" className={input} value={jenis} onChange={(e) => setJenis(e.target.value)}>
             <option value="">Semua</option>
             {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
