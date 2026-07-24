@@ -88,19 +88,28 @@ export default function AbsenWajahPage() {
   const namaOverlayRef = useRef<{ nama: string; sampaiMs: number } | null>(null);
 
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    const video = videoRef.current;
+    let batal = false;
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } })
       .then((s) => {
-        stream = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
+        // komponen sudah unmount sebelum kamera siap — jangan nyalakan, langsung matikan lagi
+        if (batal) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        if (video) {
+          video.srcObject = s;
           setSiap(true);
         }
       })
       .catch(() => setError("Kamera tidak dapat diakses. Izinkan akses kamera di browser."));
 
-    return () => stream?.getTracks().forEach((t) => t.stop());
+    return () => {
+      batal = true;
+      const stream = video?.srcObject;
+      if (stream instanceof MediaStream) stream.getTracks().forEach((t) => t.stop());
+    };
   }, []);
 
   useEffect(() => {
