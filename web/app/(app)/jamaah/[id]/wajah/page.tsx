@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api").replace(/\/api$/, "");
@@ -58,6 +59,7 @@ export default function WajahPage() {
 
   return (
     <div className="space-y-4">
+      <Link href="/jamaah" className="text-sm text-gray-500 hover:text-gray-700">← Kembali ke Data Jamaah</Link>
       <h2 className="text-xl font-bold text-gray-900">
         Foto Wajah — {jamaah?.nama_lengkap ?? "..."}
       </h2>
