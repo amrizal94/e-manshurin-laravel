@@ -45,6 +45,8 @@ export default function JamaahPage() {
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
+  const [filterKelompok, setFilterKelompok] = useState("");
+  const [filterKategori, setFilterKategori] = useState("");
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -64,6 +66,8 @@ export default function JamaahPage() {
   const reload = useCallback(() => {
     const params = new URLSearchParams({ page: String(page) });
     if (searchDebounced) params.set("search", searchDebounced);
+    if (filterKelompok) params.set("kelompok_id", filterKelompok);
+    if (filterKategori) params.set("kategori_usia", filterKategori);
     Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
@@ -73,12 +77,22 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [searchDebounced, page]);
+  }, [searchDebounced, filterKelompok, filterKategori, page]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
     api<Kelompok[]>("/kelompoks").then((res) => setKelompoks(res.data)).catch(() => {});
   }, []);
+
+  function ubahFilterKelompok(v: string) {
+    setFilterKelompok(v);
+    setPage(1);
+  }
+
+  function ubahFilterKategori(v: string) {
+    setFilterKategori(v);
+    setPage(1);
+  }
 
   function buka(j?: Jamaah) {
     setEditId(j?.id ?? null);
@@ -147,12 +161,36 @@ export default function JamaahPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <input
-        placeholder="Cari nama lengkap/panggilan..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-64"
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <input
+          placeholder="Cari nama lengkap/panggilan..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-64"
+        />
+        <select
+          aria-label="Filter kelompok"
+          value={filterKelompok}
+          onChange={(e) => ubahFilterKelompok(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
+        >
+          <option value="">Semua Kelompok</option>
+          {kelompoks.map((k) => (
+            <option key={k.id} value={k.id}>{k.nama}{k.desa ? ` — ${k.desa.nama}` : ""}</option>
+          ))}
+        </select>
+        <select
+          aria-label="Filter kategori usia"
+          value={filterKategori}
+          onChange={(e) => ubahFilterKategori(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
+        >
+          <option value="">Semua Kategori</option>
+          {Object.entries(KATEGORI_USIA).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="space-y-2 sm:hidden">
         {loading && (
