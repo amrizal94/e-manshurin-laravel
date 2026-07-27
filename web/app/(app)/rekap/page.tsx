@@ -47,22 +47,22 @@ export default function RekapPage() {
     }
   }
 
-  const input = "rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none";
+  const input = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none";
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-gray-900">Rekapitulasi Absensi</h2>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div>
+        <div className="min-w-0 w-full sm:w-40">
           <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-dari">Dari</label>
           <input id="rk-dari" type="date" className={input} value={dari} onChange={(e) => setDari(e.target.value)} />
         </div>
-        <div>
+        <div className="min-w-0 w-full sm:w-40">
           <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-sampai">Sampai</label>
           <input id="rk-sampai" type="date" className={input} value={sampai} onChange={(e) => setSampai(e.target.value)} />
         </div>
-        <div>
+        <div className="min-w-0 w-full sm:w-48">
           <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="rk-jenis">Jenis Pengajian</label>
           <select id="rk-jenis" className={input} value={jenis} onChange={(e) => setJenis(e.target.value)}>
             <option value="">Semua</option>
@@ -72,7 +72,7 @@ export default function RekapPage() {
           </select>
         </div>
         <button onClick={muat} disabled={loading}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+          className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto">
           {loading ? "Memuat..." : "Tampilkan"}
         </button>
       </div>
@@ -88,10 +88,10 @@ export default function RekapPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs text-gray-500">
                 <tr>
-                  <th className="sticky left-0 bg-gray-50 p-3">Nama</th>
-                  <th className="p-3">Kelompok</th>
+                  <th className="sticky left-0 bg-gray-50 p-2 sm:p-3">Nama</th>
+                  <th className="hidden p-2 sm:table-cell sm:p-3">Kelompok</th>
                   {kegiatans.map((k) => (
-                    <th key={k.id} className="p-3 text-center" title={k.nama}>
+                    <th key={k.id} className="whitespace-nowrap p-2 text-center sm:p-3" title={k.nama}>
                       {k.tanggal.slice(5)}
                     </th>
                   ))}
@@ -100,11 +100,11 @@ export default function RekapPage() {
               <tbody className="divide-y divide-gray-100">
                 {rows.map((r) => (
                   <tr key={r.jamaah.id} className={r.perlu_perhatian ? "bg-red-50/50" : ""}>
-                    <td className="sticky left-0 bg-inherit p-3 font-medium text-gray-900">
+                    <td className="sticky left-0 bg-inherit p-2 font-medium text-gray-900 sm:p-3">
                       {r.perlu_perhatian && <span className="mr-1 text-red-600">★</span>}
                       {r.jamaah.nama_lengkap}
                     </td>
-                    <td className="p-3 text-gray-500">{r.jamaah.kelompok}</td>
+                    <td className="hidden p-2 text-gray-500 sm:table-cell sm:p-3">{r.jamaah.kelompok}</td>
                     {kegiatans.map((k) => {
                       const s = r.statuses[k.id];
                       return (
