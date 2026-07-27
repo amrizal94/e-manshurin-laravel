@@ -36,10 +36,17 @@ export default function KegiatanPage() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [filterJenis, setFilterJenis] = useState("");
+  const [filterDari, setFilterDari] = useState("");
+  const [filterSampai, setFilterSampai] = useState("");
 
   const reload = useCallback(() => {
+    const params = new URLSearchParams({ page: String(page) });
+    if (filterJenis) params.set("jenis_pengajian", filterJenis);
+    if (filterDari) params.set("dari", filterDari);
+    if (filterSampai) params.set("sampai", filterSampai);
     Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
-    api<{ data: Kegiatan[]; last_page: number; total: number }>(`/kegiatans?page=${page}`)
+    api<{ data: Kegiatan[]; last_page: number; total: number }>(`/kegiatans?${params}`)
       .then((res) => {
         setRows(res.data.data);
         setLastPage(res.data.last_page);
@@ -47,7 +54,7 @@ export default function KegiatanPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, filterJenis, filterDari, filterSampai]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -56,6 +63,21 @@ export default function KegiatanPage() {
     api<Opsi[]>("/desas").then((r) => setDesas(r.data)).catch(() => {});
     api<Opsi[]>("/kelompoks").then((r) => setKelompoks(r.data)).catch(() => {});
   }, []);
+
+  function ubahFilterJenis(v: string) {
+    setFilterJenis(v);
+    setPage(1);
+  }
+
+  function ubahFilterDari(v: string) {
+    setFilterDari(v);
+    setPage(1);
+  }
+
+  function ubahFilterSampai(v: string) {
+    setFilterSampai(v);
+    setPage(1);
+  }
 
   async function simpan(e: React.FormEvent) {
     e.preventDefault();
@@ -106,6 +128,34 @@ export default function KegiatanPage() {
       </div>
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <select
+          aria-label="Filter jenis pengajian"
+          value={filterJenis}
+          onChange={(e) => ubahFilterJenis(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
+        >
+          <option value="">Semua Jenis</option>
+          {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          aria-label="Dari tanggal"
+          value={filterDari}
+          onChange={(e) => ubahFilterDari(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-40"
+        />
+        <input
+          type="date"
+          aria-label="Sampai tanggal"
+          value={filterSampai}
+          onChange={(e) => ubahFilterSampai(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-40"
+        />
+      </div>
 
       <div className="space-y-2 sm:hidden">
         {loading && (
