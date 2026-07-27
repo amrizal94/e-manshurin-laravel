@@ -129,32 +129,27 @@ export default function KegiatanPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <select
-          aria-label="Filter jenis pengajian"
-          value={filterJenis}
-          onChange={(e) => ubahFilterJenis(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
-        >
-          <option value="">Semua Jenis</option>
-          {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-        <input
-          type="date"
-          aria-label="Dari tanggal"
-          value={filterDari}
-          onChange={(e) => ubahFilterDari(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-40"
-        />
-        <input
-          type="date"
-          aria-label="Sampai tanggal"
-          value={filterSampai}
-          onChange={(e) => ubahFilterSampai(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-40"
-        />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-48">
+          <label className={label} htmlFor="kg-filter-jenis">Jenis Pengajian</label>
+          <select id="kg-filter-jenis" value={filterJenis}
+            onChange={(e) => ubahFilterJenis(e.target.value)} className={input}>
+            <option value="">Semua Jenis</option>
+            {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-full sm:w-40">
+          <label className={label} htmlFor="kg-filter-dari">Dari</label>
+          <input id="kg-filter-dari" type="date" value={filterDari}
+            onChange={(e) => ubahFilterDari(e.target.value)} className={input} />
+        </div>
+        <div className="w-full sm:w-40">
+          <label className={label} htmlFor="kg-filter-sampai">Sampai</label>
+          <input id="kg-filter-sampai" type="date" value={filterSampai}
+            onChange={(e) => ubahFilterSampai(e.target.value)} className={input} />
+        </div>
       </div>
 
       <div className="space-y-2 sm:hidden">
