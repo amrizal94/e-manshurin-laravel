@@ -130,16 +130,6 @@ export default function KegiatanPage() {
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-0 w-full sm:w-48">
-          <label className={label} htmlFor="kg-filter-jenis">Jenis Pengajian</label>
-          <select id="kg-filter-jenis" value={filterJenis}
-            onChange={(e) => ubahFilterJenis(e.target.value)} className={input}>
-            <option value="">Semua Jenis</option>
-            {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </div>
         <div className="min-w-0 w-full sm:w-40">
           <label className={label} htmlFor="kg-filter-dari">Dari</label>
           <input id="kg-filter-dari" type="date" value={filterDari}
@@ -149,6 +139,16 @@ export default function KegiatanPage() {
           <label className={label} htmlFor="kg-filter-sampai">Sampai</label>
           <input id="kg-filter-sampai" type="date" value={filterSampai}
             onChange={(e) => ubahFilterSampai(e.target.value)} className={input} />
+        </div>
+        <div className="min-w-0 w-full sm:w-48">
+          <label className={label} htmlFor="kg-filter-jenis">Jenis Pengajian</label>
+          <select id="kg-filter-jenis" value={filterJenis}
+            onChange={(e) => ubahFilterJenis(e.target.value)} className={input}>
+            <option value="">Semua Jenis</option>
+            {Object.entries(JENIS_PENGAJIAN).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
         </div>
       </div>
 
