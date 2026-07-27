@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/labels";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Opsi { id: number; nama: string }
 interface Pengguna {
@@ -18,6 +19,7 @@ interface Pengguna {
 const KOSONG = { name: "", email: "", password: "", role: "absensi", target: "semua" };
 
 export default function PenggunaPage() {
+  useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Pengguna[]>([]);
   const [daerahs, setDaerahs] = useState<Opsi[]>([]);
   const [desas, setDesas] = useState<Opsi[]>([]);

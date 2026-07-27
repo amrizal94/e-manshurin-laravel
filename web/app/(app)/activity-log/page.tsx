@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Pagination } from "@/components/Pagination";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Log {
   id: number;
@@ -27,6 +28,7 @@ function subjectLabel(type: string | null): string {
 }
 
 export default function ActivityLogPage() {
+  useRoleGuard(["super_admin"]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);

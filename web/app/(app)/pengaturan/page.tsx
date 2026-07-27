@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 export default function PengaturanPage() {
+  useRoleGuard(["super_admin", "admin"]);
   const [template, setTemplate] = useState("");
   const [pesan, setPesan] = useState("");
   const [error, setError] = useState("");

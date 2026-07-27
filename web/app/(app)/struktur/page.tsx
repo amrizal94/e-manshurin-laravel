@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Daerah { id: number; nama: string; desas_count: number }
 interface Desa { id: number; nama: string; daerah_id: number; kelompoks_count: number; daerah?: { nama: string } }
@@ -10,6 +11,7 @@ interface Kelompok { id: number; nama: string; desa_id: number; desa?: { nama: s
 type Level = "daerah" | "desa" | "kelompok";
 
 export default function StrukturPage() {
+  useRoleGuard(["super_admin", "admin"]);
   const [daerahs, setDaerahs] = useState<Daerah[]>([]);
   const [desas, setDesas] = useState<Desa[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);

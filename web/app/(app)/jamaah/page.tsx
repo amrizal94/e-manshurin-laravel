@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { KATEGORI_USIA } from "@/lib/labels";
 import { Pagination } from "@/components/Pagination";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Kelompok { id: number; nama: string; desa?: { nama: string } }
 interface Jamaah {
@@ -39,6 +40,7 @@ const KOSONG = {
 };
 
 export default function JamaahPage() {
+  useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Jamaah[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");

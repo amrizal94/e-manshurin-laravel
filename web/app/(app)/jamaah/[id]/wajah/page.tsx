@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useRoleGuard } from "@/lib/useRoleGuard";
 
 const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api").replace(/\/api$/, "");
 
@@ -11,6 +12,7 @@ interface Foto { id: number; path: string }
 interface Jamaah { id: number; nama_lengkap: string; photos: Foto[] }
 
 export default function WajahPage() {
+  useRoleGuard(["super_admin", "admin"]);
   const { id } = useParams<{ id: string }>();
   const [jamaah, setJamaah] = useState<Jamaah | null>(null);
   const [pesan, setPesan] = useState("");
