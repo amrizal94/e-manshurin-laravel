@@ -12,7 +12,7 @@ interface Log {
   subject_type: string | null;
   subject_id: number | null;
   causer: { id: number; name: string } | null;
-  properties: { attributes?: Record<string, unknown>; old?: Record<string, unknown> };
+  properties: { attributes?: Record<string, unknown>; old?: Record<string, unknown> } & Record<string, unknown>;
   created_at: string;
 }
 
@@ -25,6 +25,17 @@ const EVENT_LABEL: Record<string, string> = {
 function subjectLabel(type: string | null): string {
   if (!type) return "-";
   return type.replace("App\\Models\\", "");
+}
+
+/** Perubahan model: daftar kolom. Log manual (mis. izin WA): isi propertinya. */
+function detailLabel(log: Log): string {
+  if (log.properties.attributes) return Object.keys(log.properties.attributes).join(", ");
+
+  const isi = Object.entries(log.properties)
+    .filter(([k]) => k !== "old")
+    .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`);
+
+  return isi.length > 0 ? isi.join(" · ") : "-";
 }
 
 export default function ActivityLogPage() {
@@ -74,9 +85,7 @@ export default function ActivityLogPage() {
               {log.subject_id ? ` #${log.subject_id}` : ""}
             </p>
             <p className="truncate text-xs text-gray-400" title={JSON.stringify(log.properties)}>
-              {log.event === "updated" && log.properties.attributes
-                ? Object.keys(log.properties.attributes).join(", ")
-                : "-"}
+              {detailLabel(log)}
             </p>
           </div>
         ))}
@@ -110,9 +119,7 @@ export default function ActivityLogPage() {
                   {log.subject_id ? ` #${log.subject_id}` : ""}
                 </td>
                 <td className="max-w-xs truncate p-3 text-xs text-gray-400" title={JSON.stringify(log.properties)}>
-                  {log.event === "updated" && log.properties.attributes
-                    ? Object.keys(log.properties.attributes).join(", ")
-                    : "-"}
+                  {detailLabel(log)}
                 </td>
               </tr>
             ))}

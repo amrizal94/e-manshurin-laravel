@@ -112,7 +112,8 @@ class FaceController extends Controller
 
         $absensi = Absensi::updateOrCreate(
             ['kegiatan_id' => $kegiatan->id, 'jamaah_id' => $jamaah->id],
-            ['status' => 'hadir', 'metode' => 'face', 'waktu_absen' => now()]
+            // keterangan dikosongkan: kalau sebelumnya izin lewat WA, alasannya sudah tidak berlaku
+            ['status' => 'hadir', 'keterangan' => null, 'metode' => 'face', 'waktu_absen' => now()]
         );
 
         return response()->json([
