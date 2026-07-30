@@ -384,6 +384,56 @@ class WaApiTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r['message'] ?? '', 'sudah tercatat hadir'));
     }
 
+    public function test_izin_diterima_untuk_kegiatan_besok_kalau_hari_ini_tidak_ada(): void
+    {
+        Http::fake(['*/api/send' => Http::response(['success' => true])]);
+
+        $besok = now('Asia/Jakarta')->addDay();
+        Kegiatan::create([
+            'nama' => 'Pengajian Usman', 'jenis_pengajian' => 'usman',
+            'kelompok_id' => $this->kelompok->id, 'tanggal' => $besok->toDateString(),
+            'created_by' => $this->petugas->id,
+        ]);
+
+        $this->kirimWebhook($this->payloadIzin('izin Januar Agung Hudiana kerja'))->assertOk();
+
+        $absensi = Absensi::first();
+        $this->assertNotNull($absensi, 'Izin H-1 harus diterima');
+        $this->assertSame('izin', $absensi->status);
+
+        Http::assertSent(fn ($r) => str_contains($r['message'] ?? '', 'pengajian besok')
+            && str_contains($r['message'], $besok->format('d/m/Y')));
+    }
+
+    public function test_tanpa_kegiatan_hari_ini_dan_besok_tetap_membalas(): void
+    {
+        Http::fake(['*/api/send' => Http::response(['success' => true])]);
+
+        Kegiatan::create([
+            'nama' => 'Pengajian Usman', 'jenis_pengajian' => 'usman',
+            'kelompok_id' => $this->kelompok->id,
+            'tanggal' => now('Asia/Jakarta')->addDays(3)->toDateString(),
+            'created_by' => $this->petugas->id,
+        ]);
+
+        $this->kirimWebhook($this->payloadIzin('izin Januar Agung Hudiana kerja'))->assertOk();
+
+        $this->assertSame(0, Absensi::count());
+        Http::assertSent(fn ($r) => str_contains($r['message'] ?? '', 'hari ini atau besok'));
+    }
+
+    public function test_gateway_mati_tidak_bikin_webhook_gagal(): void
+    {
+        // Gateway timeout: izin tetap tercatat dan webhook tetap 200, biar gateway tidak retry
+        Http::fake(fn () => throw new \Illuminate\Http\Client\ConnectionException('Connection timed out'));
+
+        $this->kegiatanHariIni();
+
+        $this->kirimWebhook($this->payloadIzin('izin Januar Agung Hudiana sakit'))->assertOk();
+
+        $this->assertSame('izin', Absensi::first()->status);
+    }
+
     public function test_nama_tidak_ditemukan_tetap_membalas(): void
     {
         Http::fake(['*/api/send' => Http::response(['success' => true])]);

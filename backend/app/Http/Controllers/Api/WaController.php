@@ -9,6 +9,7 @@ use App\Models\Kegiatan;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -20,6 +21,13 @@ class WaController extends Controller
         . "Contoh:\n"
         . "izin Budi Santoso ada acara keluarga\n\n"
         . "Nama harus sama persis dengan yang terdaftar ya. Terima kasih 🙏";
+
+    /**
+     * app.timezone masih UTC sedangkan tanggal kegiatan diisi dalam waktu lokal, jadi
+     * "hari ini" harus dihitung pakai zona lokal — kalau tidak, izin yang dikirim antara
+     * tengah malam dan pagi (WIB) dihitung sebagai hari sebelumnya.
+     */
+    private const ZONA_LOKAL = 'Asia/Jakarta';
 
     /**
      * Webhook dari WA Gateway (D:\Projects\wa) — event "message.received".
@@ -81,12 +89,10 @@ class WaController extends Controller
             }
         }
 
-        $kegiatans = Kegiatan::whereDate('tanggal', now()->toDateString())
-            ->get()
-            ->filter(fn ($k) => $k->pesertaQuery()->whereKey($jamaah->id)->exists());
+        [$kegiatans, $untukBesok] = $this->kegiatanUntukIzin($jamaah);
 
         if ($kegiatans->isEmpty()) {
-            return "Tidak ada kegiatan hari ini untuk {$jamaah->nama_lengkap}.";
+            return "Tidak ada kegiatan hari ini atau besok untuk {$jamaah->nama_lengkap}.";
         }
 
         // Izin lewat WA tidak boleh menghapus bukti kehadiran: siapa pun bisa mengaku
@@ -130,11 +136,39 @@ class WaController extends Controller
 
         $template = Setting::get(Setting::WA_REPLY_TEMPLATE, Setting::DEFAULT_WA_REPLY_TEMPLATE);
 
-        return strtr($template, [
+        $balasan = strtr($template, [
             '{nama}' => $jamaah->nama_panggilan ?: $jamaah->nama_lengkap,
             '{keterangan}' => $keterangan ?: '-',
             '{kegiatan}' => $kegiatans->pluck('nama')->implode(', '),
         ]);
+
+        // Tanggalnya disebut supaya jamaah sadar izinnya masuk untuk besok, bukan hari ini
+        return $untukBesok
+            ? "Dicatat untuk pengajian besok ({$kegiatans->first()->tanggal->format('d/m/Y')}).\n\n{$balasan}"
+            : $balasan;
+    }
+
+    /**
+     * Kegiatan yang izinnya bisa dicatat: hari ini, atau besok kalau hari ini tidak ada.
+     * Jamaah lazim mengirim izin sejak malam sebelumnya, dan sebelumnya itu selalu ditolak.
+     *
+     * @return array{0: Collection<int, Kegiatan>, 1: bool}
+     */
+    private function kegiatanUntukIzin(Jamaah $jamaah): array
+    {
+        $hariIni = now(self::ZONA_LOKAL);
+
+        foreach ([$hariIni, $hariIni->copy()->addDay()] as $urutan => $tanggal) {
+            $kegiatans = Kegiatan::whereDate('tanggal', $tanggal->toDateString())
+                ->get()
+                ->filter(fn ($k) => $k->pesertaQuery()->whereKey($jamaah->id)->exists());
+
+            if ($kegiatans->isNotEmpty()) {
+                return [$kegiatans, $urutan === 1];
+            }
+        }
+
+        return [collect(), false];
     }
 
     /**
@@ -175,12 +209,22 @@ class WaController extends Controller
             return;
         }
 
-        Http::withToken($apiKey)
-            ->post("{$gateway}/api/send", [
-                'target' => $target,
-                'message' => $message,
-                'type' => 'text',
-            ]);
+        // Gateway lambat jangan sampai bikin webhook menggantung sampai timeout default (30s):
+        // gateway bisa mengirim ulang webhook-nya, dan izin yang sama tercatat/dinotifikasi dobel.
+        // Gagal kirim juga tidak boleh melempar keluar — izinnya sudah tercatat, mengulang
+        // seluruh proses cuma bikin log dan notifikasi dobel.
+        try {
+            Http::withToken($apiKey)
+                ->connectTimeout(5)
+                ->timeout(10)
+                ->post("{$gateway}/api/send", [
+                    'target' => $target,
+                    'message' => $message,
+                    'type' => 'text',
+                ]);
+        } catch (ConnectionException $e) {
+            report($e);
+        }
     }
 
     /**
