@@ -77,10 +77,29 @@ function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUs
   return jenisKelamin === "L" ? "Mas" : "Mbak";
 }
 
+/**
+ * Suara yang dipakai kiosk. Menyetel `utter.lang` saja tidak cukup: itu cuma permintaan,
+ * dan kalau suara bawaan perangkat berbahasa Inggris, kalimat Indonesia dibaca dengan
+ * lafal Inggris. Banyak HP sebenarnya punya suara Indonesia, hanya bukan yang default —
+ * jadi suaranya dipilih sendiri.
+ */
+let suaraTerpilih: SpeechSynthesisVoice | null = null;
+
+function cariSuaraIndonesia(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+  const semua = window.speechSynthesis.getVoices();
+  const berawalan = (kode: string) =>
+    semua.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(kode));
+
+  // Melayu jadi cadangan: lafalnya jauh lebih dekat ke Indonesia daripada Inggris
+  return berawalan("id") ?? berawalan("ms") ?? null;
+}
+
 function ucapkan(kalimat: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   const utter = new SpeechSynthesisUtterance(kalimat);
   utter.lang = "id-ID";
+  if (suaraTerpilih) utter.voice = suaraTerpilih;
   window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
   window.speechSynthesis.speak(utter);
 }
@@ -131,6 +150,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   const [suaraAktif, setSuaraAktif] = useState(false);
   const [sesiHabis, setSesiHabis] = useState(false);
   const [jadwal, setJadwal] = useState<Jadwal | null>(null);
+  const [suaraInggris, setSuaraInggris] = useState(false);
   const prosesRef = useRef(false);
   const stabilSejakRef = useRef<number | null>(null);
   const sudahDiprosesRef = useRef(false);
@@ -225,6 +245,22 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       if (stream instanceof MediaStream) stream.getTracks().forEach((t) => t.stop());
     };
   }, [sesiHabis]);
+
+  // Daftar suara sering masih kosong saat halaman baru dimuat, jadi ditunggu lewat
+  // voiceschanged. Kalau perangkat memang tidak punya suara Indonesia maupun Melayu,
+  // petugas diberi tahu supaya bisa memasang paket suaranya.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    function pilih() {
+      suaraTerpilih = cariSuaraIndonesia();
+      setSuaraInggris(window.speechSynthesis.getVoices().length > 0 && suaraTerpilih === null);
+    }
+
+    pilih();
+    window.speechSynthesis.addEventListener("voiceschanged", pilih);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", pilih);
+  }, []);
 
   useEffect(() => {
     // iOS Safari blokir speechSynthesis tanpa tap user langsung — device lain bisa langsung aktif otomatis
@@ -443,6 +479,13 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
 
       {error && (
         <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
+      )}
+
+      {suaraInggris && (
+        <p className="max-w-md text-center text-xs text-amber-300/80">
+          Perangkat ini belum punya suara Bahasa Indonesia, jadi sapaan dibaca dengan lafal
+          asing. Pasang lewat Setelan → Teks ke ucapan → Google Speech Services → Bahasa Indonesia.
+        </p>
       )}
 
       <div className="relative w-full max-w-2xl">
