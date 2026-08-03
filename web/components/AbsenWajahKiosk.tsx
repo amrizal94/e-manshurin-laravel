@@ -37,6 +37,9 @@ const DETEKSI_OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 224 });
 const OVERLAY_NAMA_MS = 3000;
 // Kiosk standby menyala seharian; jadwal cukup dicek semenit sekali.
 const POLL_JADWAL_MS = 60_000;
+// Di luar jam kegiatan kiosk cuma menyapa. Orang yang berdiri di depan kamera jangan
+// disapa tiap beberapa detik — sekali per orang per rentang ini sudah cukup ramah.
+const JEDA_SAPA_MS = 120_000;
 
 function isIOSSafari(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -74,14 +77,32 @@ function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUs
   return jenisKelamin === "L" ? "Mas" : "Mbak";
 }
 
-function ucapkanTerimaKasih(nama: string, jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string) {
+function ucapkan(kalimat: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const doa = jenisKelamin === "L" ? "Alhamdulillah, Jazakallahu Khoiro" : "Alhamdulillah, Jazakillahu Khoiro";
-  const sapaan = tentukanSapaan(jenisKelamin, usia, kategoriUsia);
-  const utter = new SpeechSynthesisUtterance(`${doa}, ${sapaan} ${nama}, sudah absen`);
+  const utter = new SpeechSynthesisUtterance(kalimat);
   utter.lang = "id-ID";
   window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
   window.speechSynthesis.speak(utter);
+}
+
+function ucapkanTerimaKasih(nama: string, jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string) {
+  const doa = jenisKelamin === "L" ? "Alhamdulillah, Jazakallahu Khoiro" : "Alhamdulillah, Jazakillahu Khoiro";
+  ucapkan(`${doa}, ${tentukanSapaan(jenisKelamin, usia, kategoriUsia)} ${nama}, sudah absen`);
+}
+
+/** Sapaan di luar jam kegiatan — tidak ada yang dicatat, jadi jangan bilang "sudah absen". */
+function ucapkanBelumAdaKegiatan(
+  nama: string,
+  jenisKelamin: "L" | "P",
+  usia: number | null,
+  kategoriUsia: string,
+  berikutnya: KegiatanRingkas | null
+) {
+  const sapaan = tentukanSapaan(jenisKelamin, usia, kategoriUsia);
+  const lanjutan = berikutnya?.jam_mulai
+    ? ` Pengajian berikutnya pukul ${jam(berikutnya.jam_mulai).replace(":", ".")}.`
+    : "";
+  ucapkan(`Halo ${sapaan} ${nama}, saat ini belum ada kegiatan ya.${lanjutan}`);
 }
 
 function jam(nilai: string | null): string {
@@ -115,10 +136,17 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   const sudahDiprosesRef = useRef(false);
   const scanTerakhirRef = useRef(0);
   const namaOverlayRef = useRef<{ nama: string; sampaiMs: number } | null>(null);
+  const disapaRef = useRef(new Map<number, number>());
+  // Dibaca di dalam scan(); pakai ref supaya polling jadwal tiap menit tidak
+  // memasang ulang loop deteksi.
+  const jadwalRef = useRef<Jadwal | null>(null);
+  const adaKegiatanRef = useRef(false);
 
   // Kiosk terkunci ke satu kegiatan tidak perlu tahu jadwal; standby menunggu poll pertama.
   const adaKegiatan = standby ? (jadwal?.aktif.length ?? 0) > 0 : true;
   const menungguJadwal = standby && jadwal === null;
+  jadwalRef.current = jadwal;
+  adaKegiatanRef.current = adaKegiatan;
 
   const muatJadwal = useCallback(async () => {
     try {
@@ -137,10 +165,10 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     return () => clearInterval(timer);
   }, [standby, sesiHabis, muatJadwal]);
 
-  // Kamera hanya menyala saat ada kegiatan — kiosk standby seharian tidak perlu
-  // lampu kamera nyala terus di jam kosong.
+  // Kamera menyala terus, termasuk di luar jam kegiatan: saat idle kiosk tetap
+  // mengenali wajah dan menyapa, cuma tidak mencatat absensi.
   useEffect(() => {
-    if (!adaKegiatan || sesiHabis) {
+    if (sesiHabis) {
       setSiap(false);
       return;
     }
@@ -167,7 +195,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       const stream = video?.srcObject;
       if (stream instanceof MediaStream) stream.getTracks().forEach((t) => t.stop());
     };
-  }, [adaKegiatan, sesiHabis]);
+  }, [sesiHabis]);
 
   useEffect(() => {
     // iOS Safari blokir speechSynthesis tanpa tap user langsung — device lain bisa langsung aktif otomatis
@@ -212,23 +240,32 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     try {
       const res = await api<{
         jamaah: {
+          id: number;
           nama_lengkap: string;
           nama_panggilan?: string;
           jenis_kelamin: "L" | "P";
           usia: number | null;
           kategori_usia: string;
         };
+        kegiatan: { id: number; nama: string } | null;
       }>(kegiatanId ? `/kegiatans/${kegiatanId}/absensi-wajah` : "/absensi-wajah", { method: "POST", body });
-      const { nama_lengkap, nama_panggilan, jenis_kelamin, usia, kategori_usia } = res.data.jamaah;
+      const { id, nama_lengkap, nama_panggilan, jenis_kelamin, usia, kategori_usia } = res.data.jamaah;
       const nama = nama_panggilan || nama_lengkap;
       namaOverlayRef.current = { nama, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
-      ucapkanTerimaKasih(nama, jenis_kelamin, usia, kategori_usia);
-      setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
+
+      if (res.data.kegiatan) {
+        ucapkanTerimaKasih(nama, jenis_kelamin, usia, kategori_usia);
+        setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
+      } else if (Date.now() - (disapaRef.current.get(id) ?? 0) >= JEDA_SAPA_MS) {
+        // idle: sapa sekali, jangan masuk riwayat — tidak ada absensi yang tercatat
+        disapaRef.current.set(id, Date.now());
+        ucapkanBelumAdaKegiatan(nama, jenis_kelamin, usia, kategori_usia, jadwalRef.current?.berikutnya ?? null);
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setSesiHabis(true);
-      } else if (err instanceof ApiError && err.status === 409) {
-        muatJadwal(); // jadwal habis di tengah sesi — langsung kembali ke layar idle
+      } else if (err instanceof ApiError && err.status === 404 && !adaKegiatanRef.current) {
+        // wajah asing saat idle — kiosk diam saja, jangan penuhi riwayat
       } else {
         setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
       }
@@ -236,11 +273,11 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       prosesRef.current = false;
       setProses(false);
     }
-  }, [kegiatanId, muatJadwal]);
+  }, [kegiatanId]);
 
   // Auto-scan begitu wajah terdeteksi stabil — kiosk diawasi panitia, tidak perlu verifikasi kedip.
   useEffect(() => {
-    if (!modelSiap || !siap || sesiHabis || !adaKegiatan) return;
+    if (!modelSiap || !siap || sesiHabis) return;
     let batal = false;
 
     async function loop() {
@@ -277,7 +314,10 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
             if (stabilSejakRef.current === null) stabilSejakRef.current = Date.now();
             const stabilMs = Date.now() - stabilSejakRef.current;
             const sejakScanTerakhir = Date.now() - scanTerakhirRef.current;
-            const bolehScan = !sudahDiprosesRef.current || sejakScanTerakhir >= PLAFON_MS;
+            // di luar jam kegiatan tidak ada yang perlu dicatat, jadi orang yang berdiri
+            // lama di depan kamera tidak perlu dikirim ke face-service tiap 6 detik
+            const plafon = adaKegiatanRef.current ? PLAFON_MS : JEDA_SAPA_MS;
+            const bolehScan = !sudahDiprosesRef.current || sejakScanTerakhir >= plafon;
             if (stabilMs >= STABIL_MS && bolehScan) {
               sudahDiprosesRef.current = true;
               scanTerakhirRef.current = Date.now();
@@ -294,7 +334,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     loop();
 
     return () => { batal = true; };
-  }, [modelSiap, siap, scan, sesiHabis, adaKegiatan]);
+  }, [modelSiap, siap, scan, sesiHabis]);
 
   function aktifkanSuara() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -310,7 +350,13 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       ? "Memproses..."
       : wajahTerdeteksi
         ? "Wajah terdeteksi, tahan sebentar..."
-        : "Arahkan wajah ke kamera...";
+        : adaKegiatan
+          ? "Arahkan wajah ke kamera..."
+          : "Belum ada pengajian saat ini";
+
+  const jadwalBerikutnya = jadwal?.berikutnya
+    ? `Jadwal berikutnya: ${kalimatJadwal(jadwal.berikutnya)}`
+    : "Tidak ada jadwal lagi hari ini.";
 
   const jalanKembali = kegiatanId ? `/kegiatan/${kegiatanId}/absen-wajah` : "/absen-wajah";
 
@@ -351,9 +397,9 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         </p>
       )}
 
-      {standby && adaKegiatan && (
-        <p className="-mt-1 text-center text-sm text-emerald-300">
-          {jadwal!.aktif.map((k) => k.nama).join(" · ")}
+      {standby && jadwal && (
+        <p className={`-mt-1 text-center text-sm ${adaKegiatan ? "text-emerald-300" : "text-gray-400"}`}>
+          {adaKegiatan ? jadwal.aktif.map((k) => k.nama).join(" · ") : jadwalBerikutnya}
         </p>
       )}
 
@@ -380,29 +426,15 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         />
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 aspect-[4/3] w-full" />
 
-        {!adaKegiatan && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl bg-black/90 px-6 text-center">
-            {menungguJadwal ? (
-              <p className="text-sm text-gray-500">Memeriksa jadwal...</p>
-            ) : (
-              <>
-                <p className="text-xl font-bold sm:text-3xl">Belum ada pengajian saat ini</p>
-                <p className="text-sm text-gray-400 sm:text-base">
-                  {jadwal?.berikutnya
-                    ? `Jadwal berikutnya: ${kalimatJadwal(jadwal.berikutnya)}`
-                    : "Tidak ada jadwal lagi hari ini."}
-                </p>
-                <p className="mt-2 text-xs text-gray-600">
-                  Kamera menyala otomatis saat pengajian dimulai.
-                </p>
-              </>
-            )}
+        {menungguJadwal && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/80 text-sm text-gray-500">
+            Memeriksa jadwal...
           </div>
         )}
 
-        {siap && adaKegiatan && (
+        {siap && !menungguJadwal && (
           <div className="absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/70 px-4 py-3 text-center sm:py-5">
-            <p className="text-base font-semibold sm:text-2xl">{label}</p>
+            <p className={`text-base font-semibold sm:text-2xl ${adaKegiatan ? "" : "text-gray-300"}`}>{label}</p>
           </div>
         )}
       </div>
@@ -420,7 +452,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
 
       <button
         onClick={scan}
-        disabled={!siap || proses || !adaKegiatan}
+        disabled={!siap || proses}
         className="rounded-xl border border-gray-700 px-6 py-3 text-xs font-medium text-gray-400 hover:bg-gray-900 disabled:opacity-50 sm:text-sm"
       >
         {proses ? "Memproses..." : "Scan manual"}

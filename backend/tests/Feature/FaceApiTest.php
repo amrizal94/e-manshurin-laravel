@@ -172,16 +172,44 @@ class FaceApiTest extends TestCase
         $this->assertSame($kegiatan->id, Absensi::first()->kegiatan_id);
     }
 
-    public function test_standby_menolak_kalau_tidak_ada_kegiatan_saat_ini(): void
+    public function test_standby_menyapa_tanpa_mencatat_kalau_belum_ada_kegiatan(): void
     {
         JamaahFaceDescriptor::create(['jamaah_id' => $this->jamaah->id, 'descriptor' => $this->vektor(0)]);
         $this->kegiatanHariIni('remaja', 180, 300); // masih 3 jam lagi, di luar toleransi
 
         $this->scan()
-            ->assertStatus(409)
-            ->assertJsonPath('message', 'Belum ada pengajian saat ini');
+            ->assertOk()
+            ->assertJsonPath('message', 'Belum ada pengajian saat ini')
+            ->assertJsonPath('data.jamaah.nama_lengkap', 'Remaja Satu')
+            ->assertJsonPath('data.kegiatan', null)
+            ->assertJsonPath('data.absensi', null);
 
         $this->assertSame(0, Absensi::count());
+    }
+
+    public function test_standby_diam_saat_wajah_asing_dan_belum_ada_kegiatan(): void
+    {
+        JamaahFaceDescriptor::create(['jamaah_id' => $this->jamaah->id, 'descriptor' => $this->vektor(0)]);
+
+        $this->scan(7)->assertNotFound(); // vektor orthogonal — tidak dikenali
+        $this->assertSame(0, Absensi::count());
+    }
+
+    public function test_standby_menyapa_jamaah_di_luar_kategori_kegiatan_hari_itu(): void
+    {
+        // orang ini bukan peserta kegiatan mana pun hari ini, tapi tetap harus dikenali saat idle
+        $anak = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Anak Satu',
+            'jenis_kelamin' => 'P',
+            'kategori_usia' => 'caberawit',
+        ]);
+        JamaahFaceDescriptor::create(['jamaah_id' => $anak->id, 'descriptor' => $this->vektor(5)]);
+
+        $this->scan(5)
+            ->assertOk()
+            ->assertJsonPath('data.jamaah.nama_lengkap', 'Anak Satu')
+            ->assertJsonPath('data.kegiatan', null);
     }
 
     public function test_standby_menerima_absen_dalam_toleransi_sebelum_mulai(): void

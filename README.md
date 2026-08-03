@@ -46,8 +46,12 @@ mana yang sedang berlangsung dari jam sekarang, dengan toleransi 30 menit sebelu
 dan sesudah selesai. Kalau beberapa kegiatan jendelanya terbuka bersamaan, kandidat
 diurutkan dari target paling spesifik (kelompok → desa → daerah) dan **wajah yang
 menentukan** kegiatan mana yang dipakai: anak masuk pengajian caberawit, dewasa masuk
-pengajian umum. Di luar jam kegiatan, kamera dimatikan dan layar menampilkan jadwal
-berikutnya.
+pengajian umum.
+
+Di luar jam kegiatan kamera tetap menyala dan wajah tetap dikenali, tapi tidak ada yang
+dicatat — kiosk hanya menyapa: *"Halo Mas Januar, saat ini belum ada kegiatan ya. Pengajian
+berikutnya pukul 19.30."* Sapaan dibatasi sekali per orang tiap 2 menit, dan wajah asing
+saat idle didiamkan saja.
 
 `/kegiatan/{id}/absen-wajah` tetap ada untuk kiosk yang sengaja dikunci ke satu kegiatan.
 
@@ -172,7 +176,7 @@ Semua di bawah `/api`, memakai token Sanctum kecuali disebut lain.
 | `POST` | `/auth/login` | Publik |
 | `POST` | `/wa/webhook` | Publik, diverifikasi HMAC |
 | `GET` | `/kegiatan-aktif` | Kegiatan yang sedang berlangsung + jadwal berikutnya + wilayah kiosk |
-| `POST` | `/absensi-wajah` | Kiosk standby — kegiatan ditentukan server dari jam |
+| `POST` | `/absensi-wajah` | Kiosk standby — kegiatan ditentukan server dari jam; di luar jam kegiatan hanya menyapa (`data.kegiatan` null) |
 | `POST` | `/kegiatans/{kegiatan}/absensi-wajah` | Kiosk yang dikunci ke satu kegiatan |
 | `POST` | `/jamaahs/{jamaah}/face-enroll` | Daftarkan wajah |
 | `GET` | `/rekap` | Rekapitulasi kehadiran |

@@ -7,6 +7,7 @@ use App\Models\Absensi;
 use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
 use App\Models\Kegiatan;
+use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,10 +97,37 @@ class FaceController extends Controller
     {
         $request->validate(['photo' => ['required', 'image', 'max:5120']]);
 
+        $probe = $this->extract($request)['descriptor'];
         $kegiatans = Kegiatan::sedangBerlangsung($request->user());
-        abort_if($kegiatans->isEmpty(), 409, 'Belum ada pengajian saat ini');
 
-        return $this->cocokkanDanCatat($this->extract($request)['descriptor'], $kegiatans);
+        return $kegiatans->isEmpty()
+            ? $this->sapaSaja($probe, $request->user())
+            : $this->cocokkanDanCatat($probe, $kegiatans);
+    }
+
+    /**
+     * Di luar jam kegiatan kiosk tetap mengenali wajah, tapi hanya menyapa — tidak ada
+     * absensi yang dicatat dan tidak ada kegiatan untuk dicatati. Kandidatnya seluruh
+     * jamaah dalam wilayah akun kiosk, bukan peserta satu kegiatan.
+     */
+    private function sapaSaja(array $probe, User $user): JsonResponse
+    {
+        $jamaahIds = Jamaah::visibleTo($user)->where('aktif', true)->pluck('id');
+        $best = $this->skorTerbaik($probe, JamaahFaceDescriptor::whereIn('jamaah_id', $jamaahIds)->get());
+
+        // wajah asing saat idle bukan kesalahan siapa-siapa — kiosk cukup diam
+        abort_if($best['jamaah_id'] === null, 404, 'Belum ada pengajian saat ini');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Belum ada pengajian saat ini',
+            'data' => [
+                'jamaah' => $this->ringkasJamaah(Jamaah::find($best['jamaah_id'])),
+                'kegiatan' => null,
+                'score' => round($best['score'], 4),
+                'absensi' => null,
+            ],
+        ]);
     }
 
     /** @param  Collection<int, Kegiatan>  $kegiatans */
@@ -110,17 +138,8 @@ class FaceController extends Controller
 
         abort_if($descriptors->isEmpty(), 422, 'Belum ada peserta yang terdaftar wajahnya');
 
-        // skor terbaik per jamaah (tiap jamaah punya beberapa descriptor)
-        $best = ['jamaah_id' => null, 'score' => 0.0];
-        foreach ($descriptors as $d) {
-            $score = $this->similarity($probe, $d->descriptor);
-            if ($score > $best['score']) {
-                $best = ['jamaah_id' => $d->jamaah_id, 'score' => $score];
-            }
-        }
-
-        $threshold = (float) config('services.face.threshold');
-        if ($best['score'] < $threshold) {
+        $best = $this->skorTerbaik($probe, $descriptors);
+        if ($best['jamaah_id'] === null) {
             return response()->json([
                 'success' => false,
                 'message' => 'Wajah tidak dikenali sebagai peserta kegiatan ini',
@@ -141,18 +160,48 @@ class FaceController extends Controller
             'success' => true,
             'message' => "Absensi tercatat: {$jamaah->nama_lengkap}",
             'data' => [
-                'jamaah' => [
-                    'id' => $jamaah->id,
-                    'nama_lengkap' => $jamaah->nama_lengkap,
-                    'nama_panggilan' => $jamaah->nama_panggilan,
-                    'jenis_kelamin' => $jamaah->jenis_kelamin,
-                    'usia' => $jamaah->usia,
-                    'kategori_usia' => $jamaah->kategori_usia,
-                ],
+                'jamaah' => $this->ringkasJamaah($jamaah),
                 'kegiatan' => ['id' => $kegiatan->id, 'nama' => $kegiatan->nama],
                 'score' => round($best['score'], 4),
                 'absensi' => $absensi,
             ],
         ]);
+    }
+
+    /**
+     * Skor tertinggi di antara semua descriptor (tiap jamaah punya beberapa foto).
+     * jamaah_id null berarti tidak ada yang melewati ambang.
+     *
+     * @param  Collection<int, JamaahFaceDescriptor>  $descriptors
+     * @return array{jamaah_id: int|null, score: float}
+     */
+    private function skorTerbaik(array $probe, Collection $descriptors): array
+    {
+        $best = ['jamaah_id' => null, 'score' => 0.0];
+        foreach ($descriptors as $d) {
+            $score = $this->similarity($probe, $d->descriptor);
+            if ($score > $best['score']) {
+                $best = ['jamaah_id' => $d->jamaah_id, 'score' => $score];
+            }
+        }
+
+        if ($best['score'] < (float) config('services.face.threshold')) {
+            $best['jamaah_id'] = null;
+        }
+
+        return $best;
+    }
+
+    /** Kolom yang dipakai kiosk untuk menyapa (sapaan ditentukan dari jenis kelamin + usia). */
+    private function ringkasJamaah(Jamaah $jamaah): array
+    {
+        return [
+            'id' => $jamaah->id,
+            'nama_lengkap' => $jamaah->nama_lengkap,
+            'nama_panggilan' => $jamaah->nama_panggilan,
+            'jenis_kelamin' => $jamaah->jenis_kelamin,
+            'usia' => $jamaah->usia,
+            'kategori_usia' => $jamaah->kategori_usia,
+        ];
     }
 }
