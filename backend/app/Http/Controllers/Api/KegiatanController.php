@@ -51,6 +51,24 @@ class KegiatanController extends Controller
         abort_unless($allowed, 403, 'Target struktur di luar wilayah akun Anda');
     }
 
+    /**
+     * Dua kegiatan boleh berbarengan selama pesertanya tidak beririsan — caberawit dan
+     * umum di jam yang sama itu wajar. Yang ditolak: jamaah yang sama bisa masuk keduanya,
+     * karena kiosk lalu harus menebak dia sedang duduk di pengajian yang mana.
+     */
+    private function assertTidakBentrok(Kegiatan $calon, ?int $kecuali = null): void
+    {
+        $bentrok = Kegiatan::whereDate('tanggal', $calon->tanggal)
+            ->when($kecuali, fn ($q) => $q->whereKeyNot($kecuali))
+            ->get()
+            ->first(fn (Kegiatan $lain) => $calon->jendelaBertumpuk($lain) && $calon->pesertaBeririsan($lain));
+
+        if ($bentrok) {
+            $jam = substr((string) $bentrok->jam_mulai, 0, 5) . '-' . substr((string) $bentrok->jam_selesai, 0, 5);
+            abort(422, "Bentrok dengan \"{$bentrok->nama}\" ({$jam}) yang pesertanya beririsan. Ubah jam atau targetnya.");
+        }
+    }
+
     private function assertVisible(Request $request, Kegiatan $kegiatan): void
     {
         abort_unless(Kegiatan::visibleTo($request->user())->whereKey($kegiatan->id)->exists(), 403);
@@ -107,6 +125,7 @@ class KegiatanController extends Controller
         $data = $request->validate($this->rules());
         $this->assertTarget($request->user(), $data);
         $data['created_by'] = $request->user()->id;
+        $this->assertTidakBentrok(new Kegiatan($data));
 
         return response()->json(['success' => true, 'message' => 'Kegiatan dibuat', 'data' => Kegiatan::create($data)], 201);
     }
@@ -127,6 +146,7 @@ class KegiatanController extends Controller
         $this->assertVisible($request, $kegiatan);
         $data = $request->validate($this->rules());
         $this->assertTarget($request->user(), $data);
+        $this->assertTidakBentrok(new Kegiatan($data), $kegiatan->id);
         $kegiatan->update($data);
 
         return response()->json(['success' => true, 'message' => 'Kegiatan diperbarui', 'data' => $kegiatan]);

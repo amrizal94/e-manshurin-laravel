@@ -122,6 +122,33 @@ class Kegiatan extends Model
             && $menit <= self::menitJam($this->jam_selesai) + self::TOLERANSI_MENIT;
     }
 
+    /**
+     * Jendela absen dua kegiatan saling menimpa. Toleransi ikut dihitung karena itulah
+     * rentang yang benar-benar dipakai kiosk — 19.00-20.00 dan 20.15-21.30 tidak
+     * bertumpuk di atas kertas, tapi jendela absennya iya.
+     */
+    public function jendelaBertumpuk(self $lain): bool
+    {
+        if (! $this->jam_mulai || ! $this->jam_selesai || ! $lain->jam_mulai || ! $lain->jam_selesai) {
+            return true; // salah satu berlaku sepanjang hari
+        }
+
+        $t = self::TOLERANSI_MENIT;
+
+        return self::menitJam($this->jam_mulai) - $t <= self::menitJam($lain->jam_selesai) + $t
+            && self::menitJam($lain->jam_mulai) - $t <= self::menitJam($this->jam_selesai) + $t;
+    }
+
+    /**
+     * Ada jamaah yang jadi peserta di kedua kegiatan. pesertaQuery() sudah menggabungkan
+     * kategori usia dan wilayah, jadi irisan ini sekaligus menangkap "Umum vs Remaja"
+     * maupun "kegiatan desa vs kegiatan kelompok di dalamnya".
+     */
+    public function pesertaBeririsan(self $lain): bool
+    {
+        return $this->pesertaQuery()->whereIn('id', $lain->pesertaQuery()->select('jamaahs.id'))->exists();
+    }
+
     /** "19:30" maupun "19:30:00" -> menit sejak tengah malam. */
     private static function menitJam(string $jam): int
     {

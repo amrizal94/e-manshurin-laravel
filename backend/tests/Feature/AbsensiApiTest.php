@@ -95,6 +95,62 @@ class AbsensiApiTest extends TestCase
             ->assertJsonValidationErrors('jam_selesai');
     }
 
+    public function test_kegiatan_bentrok_dengan_peserta_beririsan_ditolak(): void
+    {
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan())
+            ->assertCreated();
+
+        // jenisnya beda nama, tapi "umum" mencakup remaja — peserta beririsan
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Pengajian Umum',
+                'jenis_pengajian' => 'umum',
+                'jam_mulai' => '20:00',
+                'jam_selesai' => '22:00',
+            ]))
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn ($p) => str_contains($p, 'Bentrok dengan "Pengajian Remaja Malam"'));
+
+        // jam tidak bertumpuk lagi (termasuk toleransi 30 menit di kedua sisi)
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Pengajian Umum',
+                'jenis_pengajian' => 'umum',
+                'jam_mulai' => '22:30',
+                'jam_selesai' => '23:30',
+            ]))
+            ->assertCreated();
+    }
+
+    public function test_kegiatan_beda_kategori_usia_boleh_berbarengan(): void
+    {
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan())
+            ->assertCreated();
+
+        // caberawit dan remaja di jam sama: ruang berbeda, tidak ada jamaah di keduanya
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Pengajian Caberawit',
+                'jenis_pengajian' => 'caberawit',
+            ]))
+            ->assertCreated();
+    }
+
+    public function test_edit_kegiatan_tidak_bentrok_dengan_dirinya_sendiri(): void
+    {
+        $kegiatan = $this->buatKegiatan('remaja');
+        $kegiatan->update(['jam_mulai' => '19:30', 'jam_selesai' => '21:00']);
+
+        $this->actingAs($this->petugas)
+            ->putJson("/api/kegiatans/{$kegiatan->id}", $this->payloadKegiatan([
+                'tanggal' => $kegiatan->tanggal->toDateString(),
+                'nama' => 'Nama Baru',
+            ]))
+            ->assertOk();
+    }
+
     public function test_kegiatan_di_luar_scope_ditolak(): void
     {
         $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
