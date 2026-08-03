@@ -93,8 +93,8 @@ export default function KegiatanPage() {
           desa_id: level === "desa" ? Number(id) : null,
           kelompok_id: level === "kelompok" ? Number(id) : null,
           tanggal: form.tanggal,
-          jam_mulai: form.jam_mulai || null,
-          jam_selesai: form.jam_selesai || null,
+          jam_mulai: form.jam_mulai,
+          jam_selesai: form.jam_selesai,
         }),
       });
       setForm(null);
@@ -263,13 +263,13 @@ export default function KegiatanPage() {
                   onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
               </div>
               <div>
-                <label className={label} htmlFor="kg-jam_mulai">Jam Mulai</label>
-                <input id="kg-jam_mulai" type="time" className={input} value={form.jam_mulai}
+                <label className={label} htmlFor="kg-jam_mulai">Jam Mulai *</label>
+                <input id="kg-jam_mulai" type="time" required className={input} value={form.jam_mulai}
                   onChange={(e) => setForm({ ...form, jam_mulai: e.target.value })} />
               </div>
               <div>
-                <label className={label} htmlFor="kg-jam_selesai">Jam Selesai</label>
-                <input id="kg-jam_selesai" type="time" className={input} value={form.jam_selesai}
+                <label className={label} htmlFor="kg-jam_selesai">Jam Selesai *</label>
+                <input id="kg-jam_selesai" type="time" required className={input} value={form.jam_selesai}
                   onChange={(e) => setForm({ ...form, jam_selesai: e.target.value })} />
               </div>
             </div>

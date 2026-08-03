@@ -21,10 +21,11 @@ class KegiatanController extends Controller
             'desa_id' => ['nullable', 'exists:desas,id'],
             'kelompok_id' => ['nullable', 'exists:kelompoks,id'],
             'tanggal' => ['required', 'date'],
-            // Jam diisi berpasangan dan harus urut: kiosk standby memakai rentang ini
-            // untuk menentukan kegiatan mana yang sedang berlangsung.
-            'jam_mulai' => ['nullable', 'required_with:jam_selesai', 'date_format:H:i'],
-            'jam_selesai' => ['nullable', 'required_with:jam_mulai', 'date_format:H:i', 'after:jam_mulai'],
+            // Jam wajib dan harus urut: kiosk standby memakai rentang ini untuk menentukan
+            // kegiatan mana yang sedang berlangsung. Kegiatan tanpa jam bikin kamera kiosk
+            // menyala sepanjang hari.
+            'jam_mulai' => ['required', 'date_format:H:i'],
+            'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
         ];
     }
 

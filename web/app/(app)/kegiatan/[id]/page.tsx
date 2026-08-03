@@ -84,8 +84,8 @@ export default function KegiatanDetailPage() {
           desa_id: level === "desa" ? Number(targetId) : null,
           kelompok_id: level === "kelompok" ? Number(targetId) : null,
           tanggal: form.tanggal,
-          jam_mulai: form.jam_mulai || null,
-          jam_selesai: form.jam_selesai || null,
+          jam_mulai: form.jam_mulai,
+          jam_selesai: form.jam_selesai,
         }),
       });
       setForm(null);
@@ -185,13 +185,13 @@ export default function KegiatanDetailPage() {
                   value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_mulai">Jam Mulai</label>
-                <input id="ke-jam_mulai" type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_mulai">Jam Mulai *</label>
+                <input id="ke-jam_mulai" type="time" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                   value={form.jam_mulai} onChange={(e) => setForm({ ...form, jam_mulai: e.target.value })} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_selesai">Jam Selesai</label>
-                <input id="ke-jam_selesai" type="time" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor="ke-jam_selesai">Jam Selesai *</label>
+                <input id="ke-jam_selesai" type="time" required className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                   value={form.jam_selesai} onChange={(e) => setForm({ ...form, jam_selesai: e.target.value })} />
               </div>
             </div>

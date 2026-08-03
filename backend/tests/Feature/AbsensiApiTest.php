@@ -62,37 +62,37 @@ class AbsensiApiTest extends TestCase
         ]);
     }
 
-    public function test_akun_absensi_membuat_kegiatan_di_kelompoknya(): void
+    /** @param  array<string, mixed>  $ganti */
+    private function payloadKegiatan(array $ganti = []): array
     {
-        $this->actingAs($this->petugas)->postJson('/api/kegiatans', [
+        return array_merge([
             'nama' => 'Pengajian Remaja Malam',
             'jenis_pengajian' => 'remaja',
             'kelompok_id' => $this->kelompok->id,
             'tanggal' => '2026-07-21',
-        ])->assertCreated();
+            'jam_mulai' => '19:30',
+            'jam_selesai' => '21:00',
+        ], $ganti);
     }
 
-    public function test_jam_selesai_harus_setelah_jam_mulai(): void
+    public function test_akun_absensi_membuat_kegiatan_di_kelompoknya(): void
     {
-        $dasar = [
-            'nama' => 'Pengajian Remaja Malam',
-            'jenis_pengajian' => 'remaja',
-            'kelompok_id' => $this->kelompok->id,
-            'tanggal' => '2026-07-21',
-        ];
-
         $this->actingAs($this->petugas)
-            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30', 'jam_selesai' => '10:30'])
-            ->assertJsonValidationErrors('jam_selesai');
-
-        // jam hanya boleh diisi berpasangan — satu sisi saja bikin jendela absen tak terhitung
-        $this->actingAs($this->petugas)
-            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30'])
-            ->assertJsonValidationErrors('jam_selesai');
-
-        $this->actingAs($this->petugas)
-            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30', 'jam_selesai' => '21:00'])
+            ->postJson('/api/kegiatans', $this->payloadKegiatan())
             ->assertCreated();
+    }
+
+    public function test_jam_wajib_diisi_dan_harus_urut(): void
+    {
+        // jendela absen kiosk dihitung dari rentang ini; tanpa jam, kamera menyala sepanjang hari
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', ['nama' => 'Tanpa Jam', 'jenis_pengajian' => 'remaja',
+                'kelompok_id' => $this->kelompok->id, 'tanggal' => '2026-07-21'])
+            ->assertJsonValidationErrors(['jam_mulai', 'jam_selesai']);
+
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan(['jam_selesai' => '10:30']))
+            ->assertJsonValidationErrors('jam_selesai');
     }
 
     public function test_kegiatan_di_luar_scope_ditolak(): void
@@ -100,12 +100,12 @@ class AbsensiApiTest extends TestCase
         $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
         $kelompokLain = Kelompok::create(['desa_id' => $desaLain->id, 'nama' => 'Kelompok X']);
 
-        $this->actingAs($this->petugas)->postJson('/api/kegiatans', [
-            'nama' => 'Pengajian Ilegal',
-            'jenis_pengajian' => 'remaja',
-            'kelompok_id' => $kelompokLain->id,
-            'tanggal' => '2026-07-21',
-        ])->assertForbidden();
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Pengajian Ilegal',
+                'kelompok_id' => $kelompokLain->id,
+            ]))
+            ->assertForbidden();
     }
 
     public function test_peserta_terfilter_kategori_usia(): void
