@@ -165,6 +165,35 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     return () => clearInterval(timer);
   }, [standby, sesiHabis, muatJadwal]);
 
+  // Tahan layar tetap menyala selama halaman kiosk terbuka. Lebih tepat daripada
+  // menyetel "jangan pernah tidur" di HP: hanya berlaku di halaman ini, dan lepas
+  // sendiri begitu ditutup. Sistem mencabut kunci ini tiap layar sempat mati atau
+  // pindah tab, jadi harus diminta lagi saat halaman terlihat kembali.
+  useEffect(() => {
+    if (sesiHabis || typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+
+    let kunci: WakeLockSentinel | null = null;
+    let batal = false;
+
+    async function pegang() {
+      if (batal || document.visibilityState !== "visible") return;
+      try {
+        kunci = await navigator.wakeLock.request("screen");
+      } catch {
+        // ditolak (mis. baterai kritis) — kiosk tetap jalan, layarnya saja yang bisa mati
+      }
+    }
+
+    pegang();
+    document.addEventListener("visibilitychange", pegang);
+
+    return () => {
+      batal = true;
+      document.removeEventListener("visibilitychange", pegang);
+      kunci?.release();
+    };
+  }, [sesiHabis]);
+
   // Kamera menyala terus, termasuk di luar jam kegiatan: saat idle kiosk tetap
   // mengenali wajah dan menyapa, cuma tidak mencatat absensi.
   useEffect(() => {

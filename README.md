@@ -139,6 +139,17 @@ cd web && npx tsc --noEmit && npx eslint .
    sebelum absen masuk ke wilayah yang keliru.
 5. Pantau hasilnya di **Rekapitulasi**.
 
+### Menyiapkan HP sebagai kiosk
+
+Tidak perlu APK. Halaman kiosk menahan layar tetap menyala sendiri lewat Screen Wake Lock
+selama halaman terbuka, jadi tidak usah menyetel "jangan pernah tidur" untuk seluruh HP.
+Sisanya pakai bawaan Android:
+
+- Buka `/absen-wajah` di Chrome → menu → **Tambahkan ke layar utama**. Manifest PWA-nya
+  `standalone`, jadi terbuka layar penuh tanpa address bar dan ikut ter-update tiap deploy.
+- Kunci di satu halaman lewat **Setelan → Keamanan → Sematkan aplikasi** (app pinning).
+- Biarkan tercolok ke listrik. Kamera dan layar menyala terus itu berat untuk baterai.
+
 Absen wajah menimpa status izin, bukan sebaliknya — orang yang sudah tercatat hadir tidak
 bisa "diizinkan" lewat WhatsApp.
 
