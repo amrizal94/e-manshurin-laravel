@@ -42,6 +42,7 @@ const KOSONG = {
 export default function JamaahPage() {
   useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Jamaah[]>([]);
+  const [kepalaKeluargas, setKepalaKeluargas] = useState<Jamaah[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -79,7 +80,18 @@ export default function JamaahPage() {
       .finally(() => setLoading(false));
   }, [searchDebounced, filterKelompok, filterKategori, page]);
 
+  // Daftar kepala keluarga harus lepas dari pagination dan filter tabel: kalau diambil dari
+  // `rows`, KK yang kebetulan ada di halaman lain jadi tidak bisa dipilih — dan jamaah yang
+  // sudah tersambung terlihat seolah kehilangan kepala keluarganya.
+  // ponytail: sekali ambil semua, bukan select yang bisa dicari. Ganti kalau KK > 1000.
+  const muatKepalaKeluarga = useCallback(() => {
+    api<{ data: Jamaah[] }>("/jamaahs?status_kk=kepala_keluarga&per_page=1000")
+      .then((res) => setKepalaKeluargas(res.data.data))
+      .catch(() => {});
+  }, []);
+
   useEffect(reload, [reload]);
+  useEffect(muatKepalaKeluarga, [muatKepalaKeluarga]);
   useEffect(() => {
     api<Kelompok[]>("/kelompoks").then((res) => setKelompoks(res.data)).catch(() => {});
   }, []);
@@ -131,6 +143,7 @@ export default function JamaahPage() {
       });
       setForm(null);
       reload();
+      muatKepalaKeluarga(); // KK baru harus langsung bisa dipilih tanpa refresh halaman
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan");
     }
@@ -141,6 +154,7 @@ export default function JamaahPage() {
     try {
       await api(`/jamaahs/${j.id}`, { method: "DELETE" });
       reload();
+      muatKepalaKeluarga();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menghapus");
     }
@@ -385,8 +399,10 @@ export default function JamaahPage() {
                   disabled={form.status_kk === "kepala_keluarga"}
                   onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
                   <option value="">- (bukan anggota keluarga siapa pun)</option>
-                  {rows.filter((r) => r.id !== editId && r.status_kk === "kepala_keluarga").map((r) => (
-                    <option key={r.id} value={r.id}>{r.nama_lengkap}</option>
+                  {kepalaKeluargas.filter((r) => r.id !== editId).map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nama_lengkap}{r.kelompok?.nama ? ` — ${r.kelompok.nama}` : ""}
+                    </option>
                   ))}
                 </select>
                 {form.status_kk === "kepala_keluarga" && (

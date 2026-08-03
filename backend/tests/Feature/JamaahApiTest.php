@@ -97,6 +97,27 @@ class JamaahApiTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.kepala_keluarga_id', $kepala->id);
     }
 
+    /** Dipakai form jamaah untuk mengisi pilihan kepala keluarga, lepas dari halaman tabel. */
+    public function test_daftar_jamaah_bisa_disaring_per_status_kk(): void
+    {
+        foreach ([['Kepala Satu', 'kepala_keluarga'], ['Kepala Dua', 'kepala_keluarga'], ['Anak Satu', 'anak']] as [$nama, $status]) {
+            Jamaah::create([
+                'kelompok_id' => $this->kelompok->id,
+                'nama_lengkap' => $nama,
+                'jenis_kelamin' => 'L',
+                'kategori_usia' => 'usman',
+                'status_kk' => $status,
+            ]);
+        }
+
+        $data = $this->actingAs($this->admin)
+            ->getJson('/api/jamaahs?status_kk=kepala_keluarga')
+            ->assertOk()
+            ->json('data.data');
+
+        $this->assertSame(['Kepala Dua', 'Kepala Satu'], array_column($data, 'nama_lengkap'));
+    }
+
     public function test_kepala_keluarga_id_harus_menunjuk_orang_berstatus_kepala_keluarga(): void
     {
         $bukanKepala = Jamaah::create([

@@ -73,6 +73,9 @@ class JamaahController extends Controller
         if ($request->filled('aktif')) {
             $query->where('aktif', $request->boolean('aktif'));
         }
+        if ($request->filled('status_kk')) {
+            $query->where('status_kk', $request->string('status_kk'));
+        }
         if ($request->filled('search')) {
             $keyword = '%' . mb_strtolower($request->string('search')) . '%';
             $query->where(function ($q) use ($keyword) {
