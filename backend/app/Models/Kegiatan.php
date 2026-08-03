@@ -88,7 +88,9 @@ class Kegiatan extends Model
 
         return self::visibleTo($user)
             ->whereDate('tanggal', $waktu->toDateString())
-            ->orderByRaw('jam_mulai is null, jam_mulai')
+            // Target paling spesifik menang: kiosk di satu masjid harus mengutamakan
+            // kegiatan kelompoknya sendiri, bukan kegiatan desa/daerah yang jamnya berhimpit.
+            ->orderByRaw('kelompok_id is null, desa_id is null, jam_mulai is null, jam_mulai')
             ->get()
             ->filter(fn (self $k) => $k->jendelaAbsenTerbuka($waktu))
             ->values();

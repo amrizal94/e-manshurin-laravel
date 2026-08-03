@@ -213,6 +213,35 @@ class FaceApiTest extends TestCase
             ->assertJsonPath('data.kegiatan.id', $kegiatanAnak->id);
     }
 
+    public function test_standby_utamakan_kegiatan_kelompok_daripada_kegiatan_daerah(): void
+    {
+        JamaahFaceDescriptor::create(['jamaah_id' => $this->jamaah->id, 'descriptor' => $this->vektor(0)]);
+
+        // pengajian daerah mulai lebih awal, tapi kiosk ini milik kelompok
+        $daerah = $this->kegiatanHariIni('remaja', -60, 60);
+        $daerah->update(['kelompok_id' => null, 'daerah_id' => $this->kelompok->desa->daerah_id]);
+        $kelompok = $this->kegiatanHariIni('remaja', -10, 60);
+
+        $this->scan()
+            ->assertOk()
+            ->assertJsonPath('data.kegiatan.id', $kelompok->id);
+    }
+
+    public function test_kegiatan_aktif_sebutkan_wilayah_kiosk(): void
+    {
+        $petugas = User::factory()->create(['kelompok_id' => $this->kelompok->id]);
+        $petugas->assignRole('absensi');
+
+        $this->actingAs($petugas)
+            ->getJson('/api/kegiatan-aktif')
+            ->assertOk()
+            ->assertJsonPath('data.wilayah', 'Kelompok Kelompok 1');
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/kegiatan-aktif')
+            ->assertJsonPath('data.wilayah', 'Seluruh wilayah');
+    }
+
     public function test_kegiatan_tanpa_jam_dianggap_berlaku_sepanjang_hari(): void
     {
         JamaahFaceDescriptor::create(['jamaah_id' => $this->jamaah->id, 'descriptor' => $this->vektor(0)]);

@@ -82,14 +82,20 @@ class KegiatanController extends Controller
     /** Dipoll kiosk standby: kegiatan yang jendela absennya terbuka sekarang, plus jadwal berikutnya. */
     public function aktif(Request $request): JsonResponse
     {
+        $user = $request->user();
         $kolom = ['id', 'nama', 'jenis_pengajian', 'jam_mulai', 'jam_selesai'];
-        $berikutnya = Kegiatan::berikutnya($request->user());
+        $berikutnya = Kegiatan::berikutnya($user);
 
         return response()->json([
             'success' => true,
             'message' => 'OK',
             'data' => [
-                'aktif' => Kegiatan::sedangBerlangsung($request->user())->map->only($kolom)->values(),
+                // Ditampilkan di layar kiosk supaya salah akun langsung ketahuan sebelum
+                // absen masuk ke wilayah yang keliru.
+                'wilayah' => $user->kelompok?->nama ? "Kelompok {$user->kelompok->nama}"
+                    : ($user->desa?->nama ? "Desa {$user->desa->nama}"
+                        : ($user->daerah?->nama ? "Daerah {$user->daerah->nama}" : 'Seluruh wilayah')),
+                'aktif' => Kegiatan::sedangBerlangsung($user)->map->only($kolom)->values(),
                 'berikutnya' => $berikutnya?->only($kolom),
             ],
         ]);

@@ -21,6 +21,7 @@ interface KegiatanRingkas {
 }
 
 interface Jadwal {
+  wilayah: string;
   aktif: KegiatanRingkas[];
   berikutnya: KegiatanRingkas | null;
 }
@@ -341,10 +342,17 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         </Link>
       )}
 
-      <h1 className="mt-8 text-xl font-bold sm:mt-0 sm:text-3xl">Absen Wajah</h1>
+      {/* di mode terkunci, judul digeser turun supaya tidak tertimpa link "Kembali" di layar HP */}
+      <h1 className={`text-xl font-bold sm:text-3xl ${kegiatanId ? "mt-8 sm:mt-0" : ""}`}>Absen Wajah</h1>
+
+      {standby && jadwal && (
+        <p className="-mt-2 text-center text-xs text-gray-500">
+          Kiosk: {jadwal.wilayah}
+        </p>
+      )}
 
       {standby && adaKegiatan && (
-        <p className="-mt-2 text-center text-sm text-emerald-300">
+        <p className="-mt-1 text-center text-sm text-emerald-300">
           {jadwal!.aktif.map((k) => k.nama).join(" · ")}
         </p>
       )}
