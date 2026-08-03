@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Daerah;
 use App\Models\Desa;
 use App\Models\Jamaah;
+use App\Models\Kegiatan;
 use App\Models\Kelompok;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -44,5 +46,32 @@ class DashboardApiTest extends TestCase
         $this->assertSame(2, $response->json('data.jumlah_kelompok'));
         $this->assertNull($response->json('data.jumlah_desa'));
         $this->assertSame(2, $response->json('data.per_kategori_usia.remaja'));
+    }
+
+    /** Tanggal 1 dini hari WIB, UTC masih di bulan sebelumnya. */
+    public function test_kegiatan_bulan_ini_ikut_zona_lokal_bukan_utc(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-31 18:00:00', 'UTC')); // 1 September 01.00 WIB
+        Role::findOrCreate('admin');
+
+        $daerah = Daerah::create(['nama' => 'Kediri Selatan 1']);
+        $desa = Desa::create(['daerah_id' => $daerah->id, 'nama' => 'Desa A']);
+        $kelompok = Kelompok::create(['desa_id' => $desa->id, 'nama' => 'A1']);
+
+        $admin = User::factory()->create(['desa_id' => $desa->id]);
+        $admin->assignRole('admin');
+
+        Kegiatan::create([
+            'nama' => 'Pengajian 1 September',
+            'jenis_pengajian' => 'umum',
+            'kelompok_id' => $kelompok->id,
+            'tanggal' => '2026-09-01',
+            'jam_mulai' => '19:00',
+            'jam_selesai' => '21:00',
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)->getJson('/api/dashboard')->assertOk();
+        $this->assertSame(1, $response->json('data.kegiatan_bulan_ini'));
     }
 }

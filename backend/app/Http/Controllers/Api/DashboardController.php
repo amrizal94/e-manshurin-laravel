@@ -49,8 +49,13 @@ class DashboardController extends Controller
                     ->selectRaw('kategori_usia, count(*) as total')
                     ->groupBy('kategori_usia')
                     ->pluck('total', 'kategori_usia'),
+                // Batas bulan dihitung dalam waktu setempat: dengan now() polos yang UTC,
+                // tanggal 1 sebelum pukul 07.00 WIB masih terhitung bulan lalu.
                 'kegiatan_bulan_ini' => Kegiatan::visibleTo($user)
-                    ->whereBetween('tanggal', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->whereBetween('tanggal', [
+                        Kegiatan::sekarangLokal()->startOfMonth(),
+                        Kegiatan::sekarangLokal()->endOfMonth(),
+                    ])
                     ->count(),
             ],
         ]);

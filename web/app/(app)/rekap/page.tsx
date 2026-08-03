@@ -20,8 +20,12 @@ const SINGKAT: Record<string, string> = { hadir: "H", izin: "I", alpha: "A" };
 
 export default function RekapPage() {
   const now = new Date();
-  const awalBulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const hariIni = now.toISOString().slice(0, 10);
+  const bulan = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const awalBulan = `${bulan}-01`;
+  // Pakai tanggal setempat, bukan toISOString() yang UTC: sebelum pukul 07.00 WIB tanggalnya
+  // masih kemarin, dan tiap tanggal 1 rentang bawaannya jadi terbalik ("sampai" mendahului
+  // "dari") sehingga halaman langsung ditolak server.
+  const hariIni = `${bulan}-${String(now.getDate()).padStart(2, "0")}`;
 
   const [dari, setDari] = useState(awalBulan);
   const [sampai, setSampai] = useState(hariIni);
