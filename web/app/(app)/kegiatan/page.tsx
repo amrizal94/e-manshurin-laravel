@@ -51,6 +51,9 @@ export default function KegiatanPage() {
         setRows(res.data.data);
         setLastPage(res.data.last_page);
         setTotal(res.data.total);
+        // Menghapus baris terakhir di halaman terakhir menyisakan nomor halaman yang
+        // sudah tidak ada isinya — tampak seperti data habis. Mundur ke halaman terakhir.
+        if (page > res.data.last_page) setPage(res.data.last_page);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
