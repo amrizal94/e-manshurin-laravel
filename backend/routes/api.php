@@ -39,6 +39,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Kegiatan + absensi + rekap: semua role
     Route::middleware('role:super_admin|admin|absensi')->group(function () {
+        // Kiosk standby: kegiatan ditentukan dari jam, bukan dipilih di URL
+        Route::get('/kegiatan-aktif', [KegiatanController::class, 'aktif']);
+        Route::post('/absensi-wajah', [FaceController::class, 'identifyStandby']);
+
         Route::apiResource('kegiatans', KegiatanController::class);
         Route::get('/kegiatans/{kegiatan}/peserta', [KegiatanController::class, 'peserta']);
         Route::post('/kegiatans/{kegiatan}/absensi', [KegiatanController::class, 'storeAbsensi']);

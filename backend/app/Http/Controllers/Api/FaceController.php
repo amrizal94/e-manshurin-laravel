@@ -10,6 +10,7 @@ use App\Models\Kegiatan;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class FaceController extends Controller
@@ -76,16 +77,35 @@ class FaceController extends Controller
         ], 201);
     }
 
-    /** Absen via wajah: identifikasi peserta kegiatan, catat hadir. */
+    /** Absen via wajah pada kegiatan tertentu (kiosk dikunci ke satu kegiatan). */
     public function identify(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         abort_unless(Kegiatan::visibleTo($request->user())->whereKey($kegiatan->id)->exists(), 403);
         $request->validate(['photo' => ['required', 'image', 'max:5120']]);
 
-        $extracted = $this->extract($request);
-        $probe = $extracted['descriptor'];
+        return $this->cocokkanDanCatat($this->extract($request)['descriptor'], collect([$kegiatan]));
+    }
 
-        $pesertaIds = $kegiatan->pesertaQuery()->pluck('id');
+    /**
+     * Absen via wajah tanpa memilih kegiatan: kiosk standby seharian, kegiatan
+     * ditentukan dari jam sekarang. Kalau ada beberapa yang jendelanya terbuka
+     * bersamaan, yang menentukan adalah siapa yang wajahnya cocok — anak masuk
+     * kegiatan caberawit, dewasa masuk kegiatan umum.
+     */
+    public function identifyStandby(Request $request): JsonResponse
+    {
+        $request->validate(['photo' => ['required', 'image', 'max:5120']]);
+
+        $kegiatans = Kegiatan::sedangBerlangsung($request->user());
+        abort_if($kegiatans->isEmpty(), 409, 'Belum ada pengajian saat ini');
+
+        return $this->cocokkanDanCatat($this->extract($request)['descriptor'], $kegiatans);
+    }
+
+    /** @param  Collection<int, Kegiatan>  $kegiatans */
+    private function cocokkanDanCatat(array $probe, Collection $kegiatans): JsonResponse
+    {
+        $pesertaIds = $kegiatans->flatMap(fn (Kegiatan $k) => $k->pesertaQuery()->pluck('id'))->unique();
         $descriptors = JamaahFaceDescriptor::whereIn('jamaah_id', $pesertaIds)->get();
 
         abort_if($descriptors->isEmpty(), 422, 'Belum ada peserta yang terdaftar wajahnya');
@@ -109,6 +129,7 @@ class FaceController extends Controller
         }
 
         $jamaah = Jamaah::find($best['jamaah_id']);
+        $kegiatan = $kegiatans->first(fn (Kegiatan $k) => $k->pesertaQuery()->whereKey($jamaah->id)->exists());
 
         $absensi = Absensi::updateOrCreate(
             ['kegiatan_id' => $kegiatan->id, 'jamaah_id' => $jamaah->id],
@@ -128,6 +149,7 @@ class FaceController extends Controller
                     'usia' => $jamaah->usia,
                     'kategori_usia' => $jamaah->kategori_usia,
                 ],
+                'kegiatan' => ['id' => $kegiatan->id, 'nama' => $kegiatan->nama],
                 'score' => round($best['score'], 4),
                 'absensi' => $absensi,
             ],

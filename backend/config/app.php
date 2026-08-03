@@ -69,6 +69,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Zona Waktu Lokal
+    |--------------------------------------------------------------------------
+    |
+    | Data disimpan dalam UTC, tapi tanggal & jam kegiatan diisi pengguna dalam
+    | waktu setempat. Semua perbandingan "hari ini" / "sedang berlangsung" harus
+    | memakai zona ini, bukan app.timezone.
+    |
+    */
+
+    'zona_lokal' => env('APP_ZONA_LOKAL', 'Asia/Jakarta'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

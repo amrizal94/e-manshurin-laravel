@@ -72,6 +72,29 @@ class AbsensiApiTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_jam_selesai_harus_setelah_jam_mulai(): void
+    {
+        $dasar = [
+            'nama' => 'Pengajian Remaja Malam',
+            'jenis_pengajian' => 'remaja',
+            'kelompok_id' => $this->kelompok->id,
+            'tanggal' => '2026-07-21',
+        ];
+
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30', 'jam_selesai' => '10:30'])
+            ->assertJsonValidationErrors('jam_selesai');
+
+        // jam hanya boleh diisi berpasangan — satu sisi saja bikin jendela absen tak terhitung
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30'])
+            ->assertJsonValidationErrors('jam_selesai');
+
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $dasar + ['jam_mulai' => '19:30', 'jam_selesai' => '21:00'])
+            ->assertCreated();
+    }
+
     public function test_kegiatan_di_luar_scope_ditolak(): void
     {
         $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);

@@ -15,7 +15,7 @@ export class ApiError extends Error {
 // Kiosk absen-wajah jalan berjam-jam tanpa reload — 401 di tengah sesi tak boleh langsung
 // membuang halaman ke /login (kamera mati mendadak), biarkan halaman itu sendiri yang menampilkan overlay.
 function isKioskPath(pathname: string): boolean {
-  return /^\/kegiatan\/\d+\/absen-wajah/.test(pathname);
+  return /^\/absen-wajah/.test(pathname) || /^\/kegiatan\/\d+\/absen-wajah/.test(pathname);
 }
 
 export async function api<T = unknown>(

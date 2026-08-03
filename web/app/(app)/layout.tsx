@@ -16,6 +16,7 @@ const NAV = [
   { href: "/struktur", label: "Struktur", roles: ["super_admin", "admin"] },
   { href: "/jamaah", label: "Jamaah", roles: ["super_admin", "admin"] },
   { href: "/kegiatan", label: "Kegiatan" },
+  { href: "/absen-wajah", label: "Absen Wajah" },
   { href: "/rekap", label: "Rekapitulasi" },
   { href: "/pengguna", label: "Pengguna", roles: ["super_admin", "admin"] },
   { href: "/pengaturan", label: "Pengaturan", roles: ["super_admin", "admin"] },

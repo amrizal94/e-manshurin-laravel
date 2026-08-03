@@ -4,9 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -24,6 +26,12 @@ class Kegiatan extends Model
     {
         return LogOptions::defaults()->logOnlyDirty()->logExcept(['updated_at']);
     }
+
+    /**
+     * Toleransi absen wajah, dalam menit, sebelum jam mulai dan sesudah jam selesai.
+     * Jamaah biasa datang lebih awal dan ada yang absen susulan setelah acara bubar.
+     */
+    public const TOLERANSI_MENIT = 30;
 
     /** Jenis pengajian -> kategori usia jamaah yang boleh absen. */
     public const KATEGORI_MAP = [
@@ -62,6 +70,67 @@ class Kegiatan extends Model
     public function absensis(): HasMany
     {
         return $this->hasMany(Absensi::class);
+    }
+
+    /** Waktu sekarang menurut zona setempat — dasar semua perbandingan jadwal. */
+    public static function sekarangLokal(): Carbon
+    {
+        return now(config('app.zona_lokal'));
+    }
+
+    /**
+     * Kegiatan dalam wilayah user yang jendela absennya sedang terbuka.
+     * Dipakai kiosk standby untuk menentukan sendiri kegiatan mana yang sedang jalan.
+     */
+    public static function sedangBerlangsung(User $user, ?Carbon $waktu = null): Collection
+    {
+        $waktu ??= self::sekarangLokal();
+
+        return self::visibleTo($user)
+            ->whereDate('tanggal', $waktu->toDateString())
+            ->orderByRaw('jam_mulai is null, jam_mulai')
+            ->get()
+            ->filter(fn (self $k) => $k->jendelaAbsenTerbuka($waktu))
+            ->values();
+    }
+
+    /** Kegiatan terdekat yang belum mulai pada hari yang sama — buat pesan layar kiosk saat idle. */
+    public static function berikutnya(User $user, ?Carbon $waktu = null): ?self
+    {
+        $waktu ??= self::sekarangLokal();
+
+        return self::visibleTo($user)
+            ->whereDate('tanggal', $waktu->toDateString())
+            ->whereNotNull('jam_mulai')
+            ->orderBy('jam_mulai')
+            ->get()
+            ->first(fn (self $k) => self::menitJam($k->jam_mulai) > self::menitHari($waktu));
+    }
+
+    /** Jam kegiatan kosong dianggap berlaku sepanjang hari. */
+    public function jendelaAbsenTerbuka(Carbon $waktu): bool
+    {
+        if (! $this->jam_mulai || ! $this->jam_selesai) {
+            return true;
+        }
+
+        $menit = self::menitHari($waktu);
+
+        return $menit >= self::menitJam($this->jam_mulai) - self::TOLERANSI_MENIT
+            && $menit <= self::menitJam($this->jam_selesai) + self::TOLERANSI_MENIT;
+    }
+
+    /** "19:30" maupun "19:30:00" -> menit sejak tengah malam. */
+    private static function menitJam(string $jam): int
+    {
+        [$h, $m] = array_pad(explode(':', $jam), 2, '0');
+
+        return (int) $h * 60 + (int) $m;
+    }
+
+    private static function menitHari(Carbon $waktu): int
+    {
+        return $waktu->hour * 60 + $waktu->minute;
     }
 
     /** Jamaah aktif yang berhak absen di kegiatan ini (sesuai target struktur + kategori usia). */

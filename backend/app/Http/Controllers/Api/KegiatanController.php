@@ -21,8 +21,10 @@ class KegiatanController extends Controller
             'desa_id' => ['nullable', 'exists:desas,id'],
             'kelompok_id' => ['nullable', 'exists:kelompoks,id'],
             'tanggal' => ['required', 'date'],
-            'jam_mulai' => ['nullable', 'date_format:H:i'],
-            'jam_selesai' => ['nullable', 'date_format:H:i'],
+            // Jam diisi berpasangan dan harus urut: kiosk standby memakai rentang ini
+            // untuk menentukan kegiatan mana yang sedang berlangsung.
+            'jam_mulai' => ['nullable', 'required_with:jam_selesai', 'date_format:H:i'],
+            'jam_selesai' => ['nullable', 'required_with:jam_mulai', 'date_format:H:i', 'after:jam_mulai'],
         ];
     }
 
@@ -74,6 +76,22 @@ class KegiatanController extends Controller
             'success' => true,
             'message' => 'OK',
             'data' => $query->paginate($request->integer('per_page', 25)),
+        ]);
+    }
+
+    /** Dipoll kiosk standby: kegiatan yang jendela absennya terbuka sekarang, plus jadwal berikutnya. */
+    public function aktif(Request $request): JsonResponse
+    {
+        $kolom = ['id', 'nama', 'jenis_pengajian', 'jam_mulai', 'jam_selesai'];
+        $berikutnya = Kegiatan::berikutnya($request->user());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OK',
+            'data' => [
+                'aktif' => Kegiatan::sedangBerlangsung($request->user())->map->only($kolom)->values(),
+                'berikutnya' => $berikutnya?->only($kolom),
+            ],
         ]);
     }
 

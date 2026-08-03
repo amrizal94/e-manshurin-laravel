@@ -23,13 +23,6 @@ class WaController extends Controller
         . "Nama harus sama persis dengan yang terdaftar ya. Terima kasih 🙏";
 
     /**
-     * app.timezone masih UTC sedangkan tanggal kegiatan diisi dalam waktu lokal, jadi
-     * "hari ini" harus dihitung pakai zona lokal — kalau tidak, izin yang dikirim antara
-     * tengah malam dan pagi (WIB) dihitung sebagai hari sebelumnya.
-     */
-    private const ZONA_LOKAL = 'Asia/Jakarta';
-
-    /**
      * Webhook dari WA Gateway (D:\Projects\wa) — event "message.received".
      * Pesan berawalan "izin " (case-insensitive) diproses sebagai izin; pesan teks lain
      * dibalas panduan format supaya jamaah (termasuk yang lanjut usia) langsung paham caranya.
@@ -156,7 +149,9 @@ class WaController extends Controller
      */
     private function kegiatanUntukIzin(Jamaah $jamaah): array
     {
-        $hariIni = now(self::ZONA_LOKAL);
+        // app.timezone masih UTC sedangkan tanggal kegiatan diisi dalam waktu lokal — izin
+        // yang dikirim antara tengah malam dan pagi (WIB) jangan sampai dihitung hari kemarin.
+        $hariIni = Kegiatan::sekarangLokal();
 
         foreach ([$hariIni, $hariIni->copy()->addDay()] as $urutan => $tanggal) {
             $kegiatans = Kegiatan::whereDate('tanggal', $tanggal->toDateString())
