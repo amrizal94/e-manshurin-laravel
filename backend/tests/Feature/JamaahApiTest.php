@@ -138,6 +138,58 @@ class JamaahApiTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_kepala_keluarga_yang_masih_punya_anggota_tidak_bisa_diturunkan(): void
+    {
+        $kepala = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Winarko',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+            'status_kk' => 'kepala_keluarga',
+        ]);
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Anak Winarko',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'caberawit',
+            'status_kk' => 'anak',
+            'kepala_keluarga_id' => $kepala->id,
+        ]);
+
+        $this->actingAs($this->admin)->putJson("/api/jamaahs/{$kepala->id}", [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Winarko',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+            'status_kk' => 'anak',
+        ])->assertStatus(422);
+    }
+
+    public function test_kepala_keluarga_di_luar_wilayah_ditolak(): void
+    {
+        $desaLain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
+        $kelompokLain = Kelompok::create(['desa_id' => $desaLain->id, 'nama' => 'Kelompok X']);
+        $kepalaLuar = Jamaah::create([
+            'kelompok_id' => $kelompokLain->id,
+            'nama_lengkap' => 'Kepala Wilayah Lain',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+            'status_kk' => 'kepala_keluarga',
+        ]);
+
+        $adminKelompok = User::factory()->create(['kelompok_id' => $this->kelompok->id]);
+        $adminKelompok->assignRole('admin');
+
+        $this->actingAs($adminKelompok)->postJson('/api/jamaahs', [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Anak Nyasar',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'caberawit',
+            'status_kk' => 'anak',
+            'kepala_keluarga_id' => $kepalaLuar->id,
+        ])->assertStatus(422);
+    }
+
     public function test_scoping_hides_jamaah_outside_user_structure(): void
     {
         Jamaah::create([

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
 use App\Models\JamaahPhoto;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +40,7 @@ class JamaahController extends Controller
     }
 
     /** Kepala keluarga adalah rujukan keluarganya sendiri — gak boleh sekaligus jadi anggota keluarga lain. */
-    private function assertKepalaKeluarga(array $data, ?int $selfId = null): void
+    private function assertKepalaKeluarga(User $user, array $data, ?Jamaah $jamaah = null): void
     {
         if (($data['status_kk'] ?? null) === 'kepala_keluarga') {
             abort_if(! empty($data['kepala_keluarga_id']), 422, 'Kepala keluarga tidak bisa sekaligus tercatat sebagai anggota keluarga lain');
@@ -47,14 +48,24 @@ class JamaahController extends Controller
             return;
         }
 
+        // Menurunkan status kepala keluarga bikin anggotanya menggantung: rujukan mereka
+        // menunjuk orang yang bukan kepala keluarga lagi, jadi tidak lagi muncul sebagai
+        // pilihan di form dan keluarganya terlihat terputus.
+        if ($jamaah?->status_kk === 'kepala_keluarga') {
+            $anggota = $jamaah->anggotaKeluarga()->count();
+            abort_if($anggota > 0, 422, "Masih ada {$anggota} anggota keluarga yang menunjuk orang ini. Pindahkan mereka ke kepala keluarga lain dulu.");
+        }
+
         if (empty($data['kepala_keluarga_id'])) {
             return;
         }
 
-        abort_if($data['kepala_keluarga_id'] === $selfId, 422, 'Kepala keluarga tidak boleh menunjuk diri sendiri');
+        abort_if($data['kepala_keluarga_id'] === $jamaah?->id, 422, 'Kepala keluarga tidak boleh menunjuk diri sendiri');
 
-        $target = Jamaah::find($data['kepala_keluarga_id']);
-        abort_if($target?->status_kk !== 'kepala_keluarga', 422, 'Kepala keluarga yang dipilih harus berstatus KK "Kepala Keluarga"');
+        // Dibatasi wilayah: daftar pilihan di form memang sudah tersaring, tapi id-nya
+        // dikirim mentah dari klien, jadi jangan percaya begitu saja.
+        $target = Jamaah::visibleTo($user)->find($data['kepala_keluarga_id']);
+        abort_if($target?->status_kk !== 'kepala_keluarga', 422, 'Kepala keluarga yang dipilih harus ada di wilayah Anda dan berstatus KK "Kepala Keluarga"');
     }
 
     public function index(Request $request): JsonResponse
@@ -95,7 +106,7 @@ class JamaahController extends Controller
     {
         $data = $request->validate($this->rules());
         abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
-        $this->assertKepalaKeluarga($data);
+        $this->assertKepalaKeluarga($request->user(), $data);
 
         $jamaah = Jamaah::create($data);
 
@@ -119,7 +130,7 @@ class JamaahController extends Controller
 
         $data = $request->validate($this->rules());
         abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
-        $this->assertKepalaKeluarga($data, $jamaah->id);
+        $this->assertKepalaKeluarga($request->user(), $data, $jamaah);
 
         $jamaah->update($data);
 
