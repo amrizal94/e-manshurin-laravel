@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { JENIS_PENGAJIAN } from "@/lib/labels";
+import { JENIS_PENGAJIAN, KATEGORI_USIA, STATUS_ABSENSI } from "@/lib/labels";
 
 interface RekapKegiatan { id: number; nama: string; tanggal: string; jenis_pengajian: string }
 interface RekapRow {
@@ -17,6 +17,9 @@ const SEL: Record<string, string> = {
   alpha: "bg-red-50 text-red-700",
 };
 const SINGKAT: Record<string, string> = { hadir: "H", izin: "I", alpha: "A" };
+
+/** Tanpa penanda ini Excel membaca CSV UTF-8 sebagai Latin-1 dan nama berhuruf khusus jadi rusak. */
+const BOM = String.fromCharCode(0xfeff);
 
 export default function RekapPage() {
   const now = new Date();
@@ -51,6 +54,40 @@ export default function RekapPage() {
     }
   }
 
+  /**
+   * CSV dirakit di browser dari tabel yang sudah tampil: tidak ada endpoint baru, dan
+   * unduhannya tidak perlu menyelipkan token ke URL supaya bisa dibuka tanpa header.
+   */
+  function unduhCsv() {
+    const judul = [
+      "Nama", "Kelompok", "Kategori",
+      ...kegiatans.map((k) => `${k.tanggal} ${k.nama}`),
+      "Perlu Perhatian",
+    ];
+
+    const baris = rows.map((r) => [
+      r.jamaah.nama_lengkap,
+      r.jamaah.kelompok ?? "",
+      KATEGORI_USIA[r.jamaah.kategori_usia] ?? r.jamaah.kategori_usia,
+      // sel kosong = bukan peserta kegiatan itu, bukan berarti tidak hadir
+      ...kegiatans.map((k) => STATUS_ABSENSI[r.statuses[k.id] ?? ""] ?? ""),
+      r.perlu_perhatian ? "Ya" : "",
+    ]);
+
+    // Baris "sep=," memberi tahu Excel untuk memakai koma walau setelan wilayahnya
+    // (termasuk Indonesia) memakai titik koma — tanpa itu seluruh baris masuk satu kolom.
+    const csv = "sep=,\r\n" + [judul, ...baris]
+      .map((kolom) => kolom.map((sel) => `"${sel.replaceAll('"', '""')}"`).join(","))
+      .join("\r\n");
+
+    const url = URL.createObjectURL(new Blob([BOM + csv], { type: "text/csv;charset=utf-8" }));
+    const tautan = document.createElement("a");
+    tautan.href = url;
+    tautan.download = `rekap-${dari}-sd-${sampai}.csv`;
+    tautan.click();
+    URL.revokeObjectURL(url);
+  }
+
   const input = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none";
 
   return (
@@ -79,6 +116,12 @@ export default function RekapPage() {
           className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto">
           {loading ? "Memuat..." : "Tampilkan"}
         </button>
+        {kegiatans.length > 0 && (
+          <button onClick={unduhCsv}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 sm:w-auto">
+            Unduh CSV
+          </button>
+        )}
       </div>
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
