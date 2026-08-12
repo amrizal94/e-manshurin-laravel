@@ -13,6 +13,7 @@ interface Kegiatan {
   jenis_pengajian: string;
   tanggal: string;
   jam_mulai: string | null;
+  jam_selesai: string | null;
   daerah?: Opsi | null;
   desa?: Opsi | null;
   kelompok?: Opsi | null;
@@ -24,6 +25,14 @@ const PER_PAGE = 25;
 const KOSONG = {
   nama: "", jenis_pengajian: "umum", target: "", tanggal: "", jam_mulai: "", jam_selesai: "",
 };
+
+/** Hitungan dalam UTC: aritmatika tanggal setempat bisa meleset sehari di sekitar pergantian bulan. */
+function tambahHari(tanggal: string, hari: number) {
+  const d = new Date(`${tanggal}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + hari);
+
+  return d.toISOString().slice(0, 10);
+}
 
 export default function KegiatanPage() {
   const [rows, setRows] = useState<Kegiatan[]>([]);
@@ -107,6 +116,24 @@ export default function KegiatanPage() {
     }
   }
 
+  /**
+   * Pengajian jalan rutin tiap pekan, dan sekarang isian yang sama persis diketik ulang
+   * setiap kali. Formnya dibuka terisi, tanggalnya maju sepekan, sisanya tinggal disimpan —
+   * masih lewat form supaya tanggal atau jamnya sempat dibetulkan sebelum jadi.
+   */
+  function ulangi(k: Kegiatan) {
+    setForm({
+      nama: k.nama,
+      jenis_pengajian: k.jenis_pengajian,
+      target: k.kelompok ? `kelompok:${k.kelompok.id}`
+        : k.desa ? `desa:${k.desa.id}`
+          : k.daerah ? `daerah:${k.daerah.id}` : "",
+      tanggal: tambahHari(k.tanggal.slice(0, 10), 7),
+      jam_mulai: (k.jam_mulai ?? "").slice(0, 5),
+      jam_selesai: (k.jam_selesai ?? "").slice(0, 5),
+    });
+  }
+
   async function hapus(k: Kegiatan) {
     if (!confirm(`Hapus kegiatan "${k.nama}"?`)) return;
     try {
@@ -175,6 +202,7 @@ export default function KegiatanPage() {
               <span className="text-gray-400">Tercatat: {k.absensis_count}</span>
               <div className="flex gap-3">
                 <Link href={`/kegiatan/${k.id}`} className="font-semibold text-emerald-600 hover:text-emerald-800">Absensi</Link>
+                <button onClick={() => ulangi(k)} className="text-gray-500 hover:text-gray-800">Ulangi</button>
                 <button onClick={() => hapus(k)} className="text-red-400 hover:text-red-700">Hapus</button>
               </div>
             </div>
@@ -208,6 +236,7 @@ export default function KegiatanPage() {
                 <td className="p-3">{k.absensis_count}</td>
                 <td className="p-3 text-right">
                   <Link href={`/kegiatan/${k.id}`} className="mr-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800">Absensi</Link>
+                  <button onClick={() => ulangi(k)} className="mr-2 text-xs text-gray-500 hover:text-gray-800">Ulangi</button>
                   <button onClick={() => hapus(k)} className="text-xs text-red-400 hover:text-red-700">Hapus</button>
                 </td>
               </tr>
