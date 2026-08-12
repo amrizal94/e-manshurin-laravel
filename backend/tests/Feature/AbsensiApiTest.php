@@ -75,6 +75,31 @@ class AbsensiApiTest extends TestCase
         ], $ganti);
     }
 
+    /**
+     * Klien yang mengirim target baru tanpa menyertakan kolom target lama tidak boleh
+     * menyisakan dua target sekaligus — kegiatan harus tetap punya tepat satu.
+     */
+    public function test_ganti_target_mengosongkan_target_lama(): void
+    {
+        $adminDesa = User::factory()->create(['desa_id' => $this->kelompok->desa_id]);
+        $adminDesa->assignRole('admin');
+
+        $kegiatan = Kegiatan::create($this->payloadKegiatan([
+            'kelompok_id' => null,
+            'desa_id' => $this->kelompok->desa_id,
+            'created_by' => $adminDesa->id,
+        ]));
+
+        // payloadKegiatan() hanya berisi kelompok_id — desa_id memang tidak dikirim sama sekali
+        $this->actingAs($adminDesa)
+            ->putJson("/api/kegiatans/{$kegiatan->id}", $this->payloadKegiatan())
+            ->assertOk();
+
+        $kegiatan->refresh();
+        $this->assertNull($kegiatan->desa_id);
+        $this->assertSame($this->kelompok->id, $kegiatan->kelompok_id);
+    }
+
     public function test_akun_absensi_membuat_kegiatan_di_kelompoknya(): void
     {
         $this->actingAs($this->petugas)

@@ -29,6 +29,17 @@ class KegiatanController extends Controller
         ];
     }
 
+    /**
+     * Ketiga kolom target selalu ikut, meski klien tidak mengirimnya: validate() hanya
+     * mengembalikan kunci yang ada di request, jadi kolom yang hilang akan lolos dari
+     * update() dan target lama tertinggal sebagai target kedua.
+     */
+    private function dataTervalidasi(Request $request): array
+    {
+        return $request->validate($this->rules())
+            + ['daerah_id' => null, 'desa_id' => null, 'kelompok_id' => null];
+    }
+
     /** Tepat satu target struktur, dan target harus di dalam scope user. */
     private function assertTarget(User $user, array $data): void
     {
@@ -122,7 +133,7 @@ class KegiatanController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate($this->rules());
+        $data = $this->dataTervalidasi($request);
         $this->assertTarget($request->user(), $data);
         $data['created_by'] = $request->user()->id;
         $this->assertTidakBentrok(new Kegiatan($data));
@@ -144,7 +155,7 @@ class KegiatanController extends Controller
     public function update(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         $this->assertVisible($request, $kegiatan);
-        $data = $request->validate($this->rules());
+        $data = $this->dataTervalidasi($request);
         $this->assertTarget($request->user(), $data);
         $this->assertTidakBentrok(new Kegiatan($data), $kegiatan->id);
         $kegiatan->update($data);
