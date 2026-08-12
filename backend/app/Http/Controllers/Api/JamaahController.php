@@ -29,7 +29,7 @@ class JamaahController extends Controller
             'tanggal_lahir' => ['nullable', 'date'],
             'alamat' => ['nullable', 'string'],
             'no_hp' => ['nullable', 'string', 'max:30'],
-            'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah'],
+            'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah,janda,duda'],
             'pekerjaan' => ['nullable', 'string', 'max:255'],
             'status_mubaligh' => ['boolean'],
             'status_kk' => ['nullable', 'in:' . implode(',', self::STATUS_KK)],
@@ -37,6 +37,24 @@ class JamaahController extends Controller
             'aktif' => ['boolean'],
             'keterangan_tidak_aktif' => ['nullable', 'string'],
         ];
+    }
+
+    /**
+     * "Janda" dan "duda" sudah menyebut jenis kelaminnya sendiri. Kalau boleh berbeda dari
+     * kolom jenis_kelamin, ada dua sumber kebenaran — dan pengajian ibu-ibu/bapak-bapak,
+     * yang menyaring keduanya sekaligus, akan memanggil orang yang salah.
+     */
+    private function assertKategoriCocokKelamin(array $data): void
+    {
+        $harus = ['janda' => 'P', 'duda' => 'L'][$data['kategori_usia']] ?? null;
+
+        abort_if(
+            $harus && $data['jenis_kelamin'] !== $harus,
+            422,
+            $harus === 'P'
+                ? 'Kategori "Janda" hanya untuk jamaah perempuan'
+                : 'Kategori "Duda" hanya untuk jamaah laki-laki'
+        );
     }
 
     /** Kepala keluarga adalah rujukan keluarganya sendiri — gak boleh sekaligus jadi anggota keluarga lain. */
@@ -106,6 +124,7 @@ class JamaahController extends Controller
     {
         $data = $request->validate($this->rules());
         abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
+        $this->assertKategoriCocokKelamin($data);
         $this->assertKepalaKeluarga($request->user(), $data);
 
         $jamaah = Jamaah::create($data);
@@ -130,6 +149,7 @@ class JamaahController extends Controller
 
         $data = $request->validate($this->rules());
         abort_unless($this->targetWithinScope($request->user(), $data), 403, 'Kelompok di luar wilayah akun Anda');
+        $this->assertKategoriCocokKelamin($data);
         $this->assertKepalaKeluarga($request->user(), $data, $jamaah);
 
         $jamaah->update($data);

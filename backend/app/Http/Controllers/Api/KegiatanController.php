@@ -16,7 +16,7 @@ class KegiatanController extends Controller
     {
         return [
             'nama' => ['required', 'string', 'max:255'],
-            'jenis_pengajian' => ['required', 'in:umum,caberawit,praremaja,remaja,usman'],
+            'jenis_pengajian' => ['required', 'in:' . implode(',', array_keys(Kegiatan::KATEGORI_MAP))],
             'daerah_id' => ['nullable', 'exists:daerahs,id'],
             'desa_id' => ['nullable', 'exists:desas,id'],
             'kelompok_id' => ['nullable', 'exists:kelompoks,id'],

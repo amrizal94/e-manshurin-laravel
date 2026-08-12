@@ -20,7 +20,7 @@ class RekapController extends Controller
         $data = $request->validate([
             'dari' => ['required', 'date'],
             'sampai' => ['required', 'date', 'after_or_equal:dari'],
-            'jenis_pengajian' => ['nullable', 'in:umum,caberawit,praremaja,remaja,usman'],
+            'jenis_pengajian' => ['nullable', 'in:' . implode(',', array_keys(Kegiatan::KATEGORI_MAP))],
         ]);
 
         $kegiatans = Kegiatan::visibleTo($request->user())

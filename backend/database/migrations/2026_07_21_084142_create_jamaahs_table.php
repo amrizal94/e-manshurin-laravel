@@ -21,7 +21,9 @@ return new class extends Migration
             $table->date('tanggal_lahir')->nullable();
             $table->text('alamat')->nullable();
             $table->string('no_hp')->nullable();
-            $table->enum('kategori_usia', ['paud_tk', 'caberawit', 'praremaja', 'remaja', 'usman', 'menikah']);
+            // Daftar nilainya dijaga JamaahController::rules(), bukan CHECK constraint —
+            // lihat migrasi 2026_08_12_090000 yang melepasnya di basis data yang sudah jalan.
+            $table->string('kategori_usia');
             $table->string('pekerjaan')->nullable();
             $table->boolean('status_mubaligh')->default(false);
             $table->boolean('sudah_menikah')->default(false);

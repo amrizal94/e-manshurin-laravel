@@ -35,12 +35,22 @@ class Kegiatan extends Model
 
     /** Jenis pengajian -> kategori usia jamaah yang boleh absen. */
     public const KATEGORI_MAP = [
-        'umum' => ['praremaja', 'remaja', 'usman', 'menikah'],
+        // Janda dan duda tetap ikut umum seperti waktu pasangannya masih ada — tanpa ini,
+        // mengubah status seorang jamaah membuatnya lenyap dari daftar peserta.
+        'umum' => ['praremaja', 'remaja', 'usman', 'menikah', 'janda', 'duda'],
         'caberawit' => ['paud_tk', 'caberawit'],
         'praremaja' => ['praremaja'],
         'remaja' => ['remaja'],
         'usman' => ['usman'],
+        'ibu' => ['menikah', 'janda'],
+        'bapak' => ['menikah', 'duda'],
     ];
+
+    /**
+     * Jenis pengajian yang dibatasi satu jenis kelamin.
+     * Kategori usia saja tidak cukup: "menikah" berisi suami dan istri sekaligus.
+     */
+    public const GENDER_MAP = ['ibu' => 'P', 'bapak' => 'L'];
 
     protected function casts(): array
     {
@@ -166,7 +176,11 @@ class Kegiatan extends Model
     public function pesertaQuery(): Builder
     {
         $query = Jamaah::where('aktif', true)
-            ->whereIn('kategori_usia', self::KATEGORI_MAP[$this->jenis_pengajian]);
+            ->whereIn('kategori_usia', self::KATEGORI_MAP[$this->jenis_pengajian])
+            ->when(
+                self::GENDER_MAP[$this->jenis_pengajian] ?? null,
+                fn (Builder $q, string $jk) => $q->where('jenis_kelamin', $jk)
+            );
 
         if ($this->kelompok_id) {
             return $query->where('kelompok_id', $this->kelompok_id);

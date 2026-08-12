@@ -14,7 +14,9 @@ return new class extends Migration
         Schema::create('kegiatans', function (Blueprint $table) {
             $table->id();
             $table->string('nama');
-            $table->enum('jenis_pengajian', ['umum', 'caberawit', 'praremaja', 'remaja', 'usman']);
+            // Daftar nilainya dijaga Kegiatan::KATEGORI_MAP, bukan CHECK constraint —
+            // lihat migrasi 2026_08_12_090000 yang melepasnya di basis data yang sudah jalan.
+            $table->string('jenis_pengajian');
             // Target struktur: isi tepat satu dari tiga kolom ini.
             $table->foreignId('daerah_id')->nullable()->constrained('daerahs')->cascadeOnDelete();
             $table->foreignId('desa_id')->nullable()->constrained('desas')->cascadeOnDelete();

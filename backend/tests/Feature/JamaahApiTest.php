@@ -58,6 +58,19 @@ class JamaahApiTest extends TestCase
         $this->assertIsInt($response->json('data.data.0.usia'));
     }
 
+    /** "Janda"/"duda" sudah menyebut jenis kelaminnya — kalau boleh beda, penyaring pengajian ibu/bapak ikut salah. */
+    public function test_kategori_janda_duda_harus_cocok_dengan_jenis_kelamin(): void
+    {
+        $kirim = fn (array $ganti) => $this->actingAs($this->admin)->postJson('/api/jamaahs', $ganti + [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Uji Kategori',
+        ]);
+
+        $kirim(['jenis_kelamin' => 'L', 'kategori_usia' => 'janda'])->assertStatus(422);
+        $kirim(['jenis_kelamin' => 'P', 'kategori_usia' => 'duda'])->assertStatus(422);
+        $kirim(['jenis_kelamin' => 'P', 'kategori_usia' => 'janda'])->assertCreated();
+    }
+
     public function test_kepala_keluarga_tidak_boleh_jadi_anggota_keluarga_lain(): void
     {
         $lain = Jamaah::create([

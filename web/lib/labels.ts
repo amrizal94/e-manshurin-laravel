@@ -5,6 +5,8 @@ export const KATEGORI_USIA: Record<string, string> = {
   remaja: "Remaja (SMA)",
   usman: "Usia Mandiri",
   menikah: "Menikah",
+  janda: "Janda",
+  duda: "Duda",
 };
 
 export const JENIS_PENGAJIAN: Record<string, string> = {
@@ -13,6 +15,8 @@ export const JENIS_PENGAJIAN: Record<string, string> = {
   praremaja: "Praremaja",
   remaja: "Remaja",
   usman: "Usman",
+  ibu: "Ibu-ibu",
+  bapak: "Bapak-bapak",
 };
 
 export const STATUS_ABSENSI: Record<string, string> = {

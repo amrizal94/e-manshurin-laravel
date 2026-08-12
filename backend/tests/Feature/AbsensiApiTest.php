@@ -76,6 +76,37 @@ class AbsensiApiTest extends TestCase
     }
 
     /**
+     * Pengajian ibu-ibu/bapak-bapak menyaring dua hal sekaligus: kategori (menikah atau
+     * pernah menikah) dan jenis kelamin — "menikah" sendiri berisi suami dan istri.
+     */
+    public function test_pengajian_ibu_dan_bapak_menyaring_kategori_sekaligus_jenis_kelamin(): void
+    {
+        $buat = fn (string $nama, string $kelamin, string $kategori) => Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => $nama,
+            'jenis_kelamin' => $kelamin,
+            'kategori_usia' => $kategori,
+        ]);
+
+        $buat('Istri', 'P', 'menikah');
+        $buat('Janda', 'P', 'janda');
+        $buat('Suami', 'L', 'menikah');
+        $buat('Duda', 'L', 'duda');
+        $buat('Gadis Usman', 'P', 'usman');
+
+        $peserta = fn (Kegiatan $k) => $k->pesertaQuery()->orderBy('nama_lengkap')->pluck('nama_lengkap')->all();
+
+        $this->assertSame(['Istri', 'Janda'], $peserta($this->buatKegiatan('ibu')));
+        $this->assertSame(['Duda', 'Suami'], $peserta($this->buatKegiatan('bapak', '2026-07-22')));
+
+        // Janda dan duda tidak boleh lenyap dari pengajian umum begitu statusnya diubah
+        $this->assertSame(
+            ['Duda', 'Gadis Usman', 'Istri', 'Janda', 'Remaja Satu', 'Suami'],
+            $peserta($this->buatKegiatan('umum', '2026-07-23'))
+        );
+    }
+
+    /**
      * Klien yang mengirim target baru tanpa menyertakan kolom target lama tidak boleh
      * menyisakan dua target sekaligus — kegiatan harus tetap punya tepat satu.
      */
