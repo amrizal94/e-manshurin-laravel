@@ -10,3 +10,7 @@ Artisan::command('inspire', function () {
 
 // activitylog.delete_records_older_than_days cuma berlaku kalau perintah ini benar-benar jalan
 Schedule::command('activitylog:clean')->dailyAt('02:00');
+
+// Device WA bisa logout diam-diam. Tanpa cek berkala, matinya baru ketahuan waktu ada
+// jamaah mengeluh izinnya tidak dibalas.
+Schedule::command('wa:healthcheck')->hourly()->withoutOverlapping();

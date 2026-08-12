@@ -7,11 +7,10 @@ use App\Models\Absensi;
 use App\Models\Jamaah;
 use App\Models\Kegiatan;
 use App\Models\Setting;
+use App\Support\WaGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class WaController extends Controller
@@ -194,32 +193,10 @@ class WaController extends Controller
             . 'Kalau ini di luar sepengetahuan Anda, hubungi petugas.');
     }
 
-    /** Kirim balasan lewat WA Gateway: POST {gateway_url}/api/send. */
+    /** Kirim balasan lewat WA Gateway. Gagal kirim diabaikan — izinnya sudah tercatat. */
     private function balas(string $target, string $message): void
     {
-        $gateway = config('services.wa.gateway_url');
-        $apiKey = config('services.wa.device_api_key');
-
-        if (! $gateway || ! $apiKey) {
-            return;
-        }
-
-        // Gateway lambat jangan sampai bikin webhook menggantung sampai timeout default (30s):
-        // gateway bisa mengirim ulang webhook-nya, dan izin yang sama tercatat/dinotifikasi dobel.
-        // Gagal kirim juga tidak boleh melempar keluar — izinnya sudah tercatat, mengulang
-        // seluruh proses cuma bikin log dan notifikasi dobel.
-        try {
-            Http::withToken($apiKey)
-                ->connectTimeout(5)
-                ->timeout(10)
-                ->post("{$gateway}/api/send", [
-                    'target' => $target,
-                    'message' => $message,
-                    'type' => 'text',
-                ]);
-        } catch (ConnectionException $e) {
-            report($e);
-        }
+        WaGateway::kirim($target, $message);
     }
 
     /**

@@ -45,6 +45,14 @@ return [
         'gateway_url' => env('WA_GATEWAY_URL', 'https://wa.kreasikaryaarjuna.co.id'),
         // API key device yang dibuat di dashboard gateway, dipakai untuk kirim balasan + verifikasi webhook
         'device_api_key' => env('WA_DEVICE_API_KEY'),
+        // Nomor device E-Manshurin sendiri: healthcheck mengirim pesan ke dirinya sendiri
+        'healthcheck_target' => env('WA_HEALTHCHECK_TARGET', '6282322278296'),
+    ],
+
+    'telegram' => [
+        // Jalur alarm yang tidak ikut mati waktu WA mati. Kosongkan untuk mematikan alarm.
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'chat_id' => env('TELEGRAM_CHAT_ID'),
     ],
 
 ];
