@@ -73,7 +73,9 @@ class BuatAkunStruktur extends Command
             return self::SUCCESS;
         }
 
-        $csv = collect([['Nama', 'Email', 'Password', 'Peran'], ...$dibuat])
+        // Baris "sep=," memberi tahu Excel untuk memakai koma walau setelan wilayahnya
+        // (termasuk Indonesia) memakai titik koma — tanpa itu seluruh baris masuk satu kolom.
+        $csv = "sep=,\r\n" . collect([['Nama', 'Email', 'Password', 'Peran'], ...$dibuat])
             ->map(fn ($kolom) => collect($kolom)->map(fn ($sel) => '"' . str_replace('"', '""', $sel) . '"')->implode(','))
             ->implode("\r\n");
 
