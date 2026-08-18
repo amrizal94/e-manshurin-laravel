@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import * as faceapi from "face-api.js";
 import { api, ApiError } from "@/lib/api";
+import { useKamera } from "@/lib/useKamera";
 
 interface Hasil {
   ok: boolean;
@@ -141,7 +142,6 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   const standby = !kegiatanId;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [siap, setSiap] = useState(false);
   const [proses, setProses] = useState(false);
   const [riwayat, setRiwayat] = useState<Hasil[]>([]);
   const [error, setError] = useState("");
@@ -161,6 +161,16 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   // memasang ulang loop deteksi.
   const jadwalRef = useRef<Jadwal | null>(null);
   const adaKegiatanRef = useRef(false);
+
+  // Kamera menyala terus, termasuk di luar jam kegiatan: saat idle kiosk tetap
+  // mengenali wajah dan menyapa, cuma tidak mencatat absensi.
+  const {
+    daftar: daftarKamera,
+    dipilih: kameraDipilih,
+    pilih: pilihKamera,
+    siap,
+    error: errorKamera,
+  } = useKamera(videoRef, !sesiHabis);
 
   // Kiosk terkunci ke satu kegiatan tidak perlu tahu jadwal; standby menunggu poll pertama.
   const adaKegiatan = standby ? (jadwal?.aktif.length ?? 0) > 0 : true;
@@ -211,38 +221,6 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       batal = true;
       document.removeEventListener("visibilitychange", pegang);
       kunci?.release();
-    };
-  }, [sesiHabis]);
-
-  // Kamera menyala terus, termasuk di luar jam kegiatan: saat idle kiosk tetap
-  // mengenali wajah dan menyapa, cuma tidak mencatat absensi.
-  useEffect(() => {
-    if (sesiHabis) {
-      setSiap(false);
-      return;
-    }
-
-    const video = videoRef.current;
-    let batal = false;
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } })
-      .then((s) => {
-        // komponen sudah unmount sebelum kamera siap — jangan nyalakan, langsung matikan lagi
-        if (batal) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        if (video) {
-          video.srcObject = s;
-          setSiap(true);
-        }
-      })
-      .catch(() => setError("Kamera tidak dapat diakses. Izinkan akses kamera di browser."));
-
-    return () => {
-      batal = true;
-      const stream = video?.srcObject;
-      if (stream instanceof MediaStream) stream.getTracks().forEach((t) => t.stop());
     };
   }, [sesiHabis]);
 
@@ -477,8 +455,8 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         </button>
       )}
 
-      {error && (
-        <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{error}</p>
+      {(errorKamera || error) && (
+        <p className="rounded-lg bg-red-500/10 px-4 py-2 text-sm text-red-300">{errorKamera || error}</p>
       )}
 
       {suaraInggris && (
@@ -522,13 +500,34 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         </div>
       )}
 
-      <button
-        onClick={scan}
-        disabled={!siap || proses}
-        className="rounded-xl border border-gray-700 px-6 py-3 text-xs font-medium text-gray-400 hover:bg-gray-900 disabled:opacity-50 sm:text-sm"
-      >
-        {proses ? "Memproses..." : "Scan manual"}
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={scan}
+          disabled={!siap || proses}
+          className="rounded-xl border border-gray-700 px-6 py-3 text-xs font-medium text-gray-400 hover:bg-gray-900 disabled:opacity-50 sm:text-sm"
+        >
+          {proses ? "Memproses..." : "Scan manual"}
+        </button>
+
+        {/* Cuma muncul kalau memang ada lebih dari satu kamera — di HP tidak perlu. */}
+        {daftarKamera.length > 1 && (
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Kamera
+            <select
+              value={kameraDipilih}
+              onChange={(e) => pilihKamera(e.target.value)}
+              className="rounded-xl border border-gray-700 bg-gray-900 px-3 py-3 text-xs text-gray-300"
+            >
+              <option value="">Kamera bawaan</option>
+              {daftarKamera.map((d, i) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Kamera ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div className="w-full max-w-2xl flex-1">
         <p className="mb-2 text-xs uppercase tracking-wide text-gray-500">Riwayat</p>
