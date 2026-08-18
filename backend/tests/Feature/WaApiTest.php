@@ -474,7 +474,7 @@ class WaApiTest extends TestCase
         $this->petugas->assignRole(\Spatie\Permission\Models\Role::findOrCreate('admin'));
 
         $this->actingAs($this->petugas)
-            ->putJson('/api/settings/wa-reply-template', ['template' => 'Halo {nama}'])
+            ->putJson('/api/settings/' . Setting::WA_REPLY_TEMPLATE, ['value' => 'Halo {nama}'])
             ->assertOk();
 
         $this->assertSame('Halo {nama}', Setting::get(Setting::WA_REPLY_TEMPLATE));

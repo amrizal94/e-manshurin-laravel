@@ -9,20 +9,26 @@ use Illuminate\Http\Request;
 
 class SettingController extends Controller
 {
-    public function waReplyTemplate(): JsonResponse
+    /**
+     * Semua pengaturan sekaligus. Kiosk absen wajah ikut memanggil ini tiap menit
+     * untuk teks suaranya, jadi role absensi boleh membaca — tapi tidak mengubah.
+     */
+    public function index(): JsonResponse
     {
-        return response()->json([
-            'success' => true,
-            'message' => 'OK',
-            'data' => ['template' => Setting::get(Setting::WA_REPLY_TEMPLATE, Setting::DEFAULT_WA_REPLY_TEMPLATE)],
-        ]);
+        return response()->json(['success' => true, 'message' => 'OK', 'data' => Setting::semua()]);
     }
 
-    public function updateWaReplyTemplate(Request $request): JsonResponse
+    public function update(Request $request, string $key): JsonResponse
     {
-        $data = $request->validate(['template' => ['required', 'string', 'max:500']]);
-        Setting::set(Setting::WA_REPLY_TEMPLATE, $data['template']);
+        abort_unless(array_key_exists($key, Setting::BAWAAN), 404);
 
-        return response()->json(['success' => true, 'message' => 'Template balasan disimpan', 'data' => ['template' => $data['template']]]);
+        $data = $request->validate(['value' => ['required', 'string', 'max:500']]);
+        Setting::set($key, $data['value']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengaturan disimpan',
+            'data' => [$key => $data['value']],
+        ]);
     }
 }

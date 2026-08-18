@@ -50,11 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/rekap', [RekapController::class, 'index']);
     });
 
-    // Pengaturan: hanya super admin & admin
-    Route::middleware('role:super_admin|admin')->group(function () {
-        Route::get('/settings/wa-reply-template', [SettingController::class, 'waReplyTemplate']);
-        Route::put('/settings/wa-reply-template', [SettingController::class, 'updateWaReplyTemplate']);
-    });
+    // Kiosk (role absensi) ikut membaca ini untuk teks suaranya; yang mengubah tetap admin.
+    Route::middleware('role:super_admin|admin|absensi')->get('/settings', [SettingController::class, 'index']);
+    Route::middleware('role:super_admin|admin')->put('/settings/{key}', [SettingController::class, 'update']);
 
     // Log aktivitas: audit trail, hanya super admin (data lintas seluruh wilayah)
     Route::middleware('role:super_admin')->group(function () {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import * as faceapi from "face-api.js";
 import { api, ApiError } from "@/lib/api";
 import { useKamera } from "@/lib/useKamera";
+import { buangKalimat, isiTemplate, segarkanSuara, ucapkan } from "@/lib/suara";
 
 interface Hasil {
   ok: boolean;
@@ -41,6 +42,13 @@ const POLL_JADWAL_MS = 60_000;
 // Di luar jam kegiatan kiosk cuma menyapa. Orang yang berdiri di depan kamera jangan
 // disapa tiap beberapa detik — sekali per orang per rentang ini sudah cukup ramah.
 const JEDA_SAPA_MS = 120_000;
+const JAM_BERIKUTNYA = "{jam_berikutnya}";
+
+/** Dipakai sampai pengaturan dari server datang, dan kalau servernya tidak terjangkau. */
+const SUARA_BAWAAN = {
+  suara_absen: "{doa}, {sapaan} {nama}, sudah absen",
+  suara_idle: "Halo {sapaan} {nama}, saat ini belum ada kegiatan ya. Pengajian berikutnya pukul {jam_berikutnya}.",
+};
 
 function isIOSSafari(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -78,51 +86,38 @@ function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUs
   return jenisKelamin === "L" ? "Mas" : "Mbak";
 }
 
-/**
- * Suara yang dipakai kiosk. Menyetel `utter.lang` saja tidak cukup: itu cuma permintaan,
- * dan kalau suara bawaan perangkat berbahasa Inggris, kalimat Indonesia dibaca dengan
- * lafal Inggris. Banyak HP sebenarnya punya suara Indonesia, hanya bukan yang default —
- * jadi suaranya dipilih sendiri.
- */
-let suaraTerpilih: SpeechSynthesisVoice | null = null;
-
-function cariSuaraIndonesia(): SpeechSynthesisVoice | null {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-  const semua = window.speechSynthesis.getVoices();
-  const berawalan = (kode: string) =>
-    semua.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(kode));
-
-  // Melayu jadi cadangan: lafalnya jauh lebih dekat ke Indonesia daripada Inggris
-  return berawalan("id") ?? berawalan("ms") ?? null;
-}
-
-function ucapkan(kalimat: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const utter = new SpeechSynthesisUtterance(kalimat);
-  utter.lang = "id-ID";
-  if (suaraTerpilih) utter.voice = suaraTerpilih;
-  window.speechSynthesis.cancel(); // potong ucapan sebelumnya biar tidak menumpuk kalau scan beruntun
-  window.speechSynthesis.speak(utter);
-}
-
-function ucapkanTerimaKasih(nama: string, jenisKelamin: "L" | "P", usia: number | null, kategoriUsia: string) {
+function ucapkanTerimaKasih(
+  template: string,
+  nama: string,
+  jenisKelamin: "L" | "P",
+  usia: number | null,
+  kategoriUsia: string
+) {
+  // Doanya beda menurut kelamin, jadi tetap dihitung di sini — yang bisa diatur
+  // petugas cuma susunan kalimatnya.
   const doa = jenisKelamin === "L" ? "Alhamdulillah, Jazakallahu Khoiro" : "Alhamdulillah, Jazakillahu Khoiro";
-  ucapkan(`${doa}, ${tentukanSapaan(jenisKelamin, usia, kategoriUsia)} ${nama}, sudah absen`);
+  ucapkan(isiTemplate(template, { doa, sapaan: tentukanSapaan(jenisKelamin, usia, kategoriUsia), nama }));
 }
 
 /** Sapaan di luar jam kegiatan — tidak ada yang dicatat, jadi jangan bilang "sudah absen". */
 function ucapkanBelumAdaKegiatan(
+  template: string,
   nama: string,
   jenisKelamin: "L" | "P",
   usia: number | null,
   kategoriUsia: string,
   berikutnya: KegiatanRingkas | null
 ) {
-  const sapaan = tentukanSapaan(jenisKelamin, usia, kategoriUsia);
-  const lanjutan = berikutnya?.jam_mulai
-    ? ` Pengajian berikutnya pukul ${jam(berikutnya.jam_mulai).replace(":", ".")}.`
-    : "";
-  ucapkan(`Halo ${sapaan} ${nama}, saat ini belum ada kegiatan ya.${lanjutan}`);
+  const jamBerikutnya = berikutnya?.jam_mulai ? jam(berikutnya.jam_mulai).replace(":", ".") : null;
+  const kalimat = jamBerikutnya ? template : buangKalimat(template, JAM_BERIKUTNYA);
+
+  ucapkan(
+    isiTemplate(kalimat, {
+      sapaan: tentukanSapaan(jenisKelamin, usia, kategoriUsia),
+      nama,
+      jam_berikutnya: jamBerikutnya ?? "",
+    })
+  );
 }
 
 function jam(nilai: string | null): string {
@@ -161,6 +156,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   // memasang ulang loop deteksi.
   const jadwalRef = useRef<Jadwal | null>(null);
   const adaKegiatanRef = useRef(false);
+  const suaraRef = useRef(SUARA_BAWAAN);
 
   // Kamera menyala terus, termasuk di luar jam kegiatan: saat idle kiosk tetap
   // mengenali wajah dan menyapa, cuma tidak mencatat absensi.
@@ -194,6 +190,25 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     const timer = setInterval(muatJadwal, POLL_JADWAL_MS);
     return () => clearInterval(timer);
   }, [standby, sesiHabis, muatJadwal]);
+
+  // Kiosk dibiarkan menyala berjam-jam, jadi teks suaranya ikut diambil ulang tiap
+  // menit: kata-kata yang diubah di Pengaturan berlaku tanpa perlu reload kiosk.
+  useEffect(() => {
+    if (sesiHabis) return;
+
+    async function muat() {
+      try {
+        const res = await api<typeof SUARA_BAWAAN>("/settings");
+        suaraRef.current = { ...SUARA_BAWAAN, ...res.data };
+      } catch {
+        // pertahankan teks terakhir — kiosk tetap menyapa walau server sesaat tidak terjangkau
+      }
+    }
+
+    muat();
+    const timer = setInterval(muat, POLL_JADWAL_MS);
+    return () => clearInterval(timer);
+  }, [sesiHabis]);
 
   // Tahan layar tetap menyala selama halaman kiosk terbuka. Lebih tepat daripada
   // menyetel "jangan pernah tidur" di HP: hanya berlaku di halaman ini, dan lepas
@@ -230,10 +245,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
-    function pilih() {
-      suaraTerpilih = cariSuaraIndonesia();
-      setSuaraInggris(window.speechSynthesis.getVoices().length > 0 && suaraTerpilih === null);
-    }
+    const pilih = () => setSuaraInggris(segarkanSuara());
 
     pilih();
     window.speechSynthesis.addEventListener("voiceschanged", pilih);
@@ -297,12 +309,19 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       namaOverlayRef.current = { nama, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
 
       if (res.data.kegiatan) {
-        ucapkanTerimaKasih(nama, jenis_kelamin, usia, kategori_usia);
+        ucapkanTerimaKasih(suaraRef.current.suara_absen, nama, jenis_kelamin, usia, kategori_usia);
         setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
       } else if (Date.now() - (disapaRef.current.get(id) ?? 0) >= JEDA_SAPA_MS) {
         // idle: sapa sekali, jangan masuk riwayat — tidak ada absensi yang tercatat
         disapaRef.current.set(id, Date.now());
-        ucapkanBelumAdaKegiatan(nama, jenis_kelamin, usia, kategori_usia, jadwalRef.current?.berikutnya ?? null);
+        ucapkanBelumAdaKegiatan(
+          suaraRef.current.suara_idle,
+          nama,
+          jenis_kelamin,
+          usia,
+          kategori_usia,
+          jadwalRef.current?.berikutnya ?? null
+        );
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
