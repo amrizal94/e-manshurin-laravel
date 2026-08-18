@@ -469,6 +469,47 @@ class WaApiTest extends TestCase
         Http::assertSent(fn ($r) => $r['message'] === 'OK Januar Agung Hudiana: Sakit');
     }
 
+    public function test_nama_kembar_dibalas_minta_diperjelas_tanpa_menyebut_nama(): void
+    {
+        Http::fake(['*/api/send' => Http::response(['success' => true])]);
+
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Januar Agung Hudiana',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        Kegiatan::create([
+            'nama' => 'Pengajian Usman', 'jenis_pengajian' => 'usman',
+            'kelompok_id' => $this->kelompok->id, 'tanggal' => now()->toDateString(),
+            'created_by' => $this->petugas->id,
+        ]);
+
+        $this->kirimWebhook($this->payloadIzin('izin Januar Agung Hudiana Sakit'))->assertOk();
+
+        Http::assertSent(fn ($r) => str_contains($r['message'], 'Ada lebih dari satu jamaah')
+            && ! str_contains($r['message'], 'Januar'));
+        $this->assertSame(0, Absensi::count());
+    }
+
+    public function test_nama_yang_jadi_awalan_nama_lain_dianggap_kembar(): void
+    {
+        Http::fake(['*/api/send' => Http::response(['success' => true])]);
+
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Januar Agung Hudiana Putra',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        // "Januar Agung" cocok ke dua-duanya — dulu dibalas "tidak ditemukan", padahal ketemu dua
+        $this->kirimWebhook($this->payloadIzin('izin Januar Agung Sakit'))->assertOk();
+
+        Http::assertSent(fn ($r) => str_contains($r['message'], 'Ada lebih dari satu jamaah'));
+    }
+
     public function test_admin_bisa_ubah_template_via_web(): void
     {
         $this->petugas->assignRole(\Spatie\Permission\Models\Role::findOrCreate('admin'));

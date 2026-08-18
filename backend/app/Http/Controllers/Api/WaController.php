@@ -22,6 +22,14 @@ class WaController extends Controller
         . "Nama harus sama persis dengan yang terdaftar ya. Terima kasih 🙏";
 
     /**
+     * Nama yang ditulis kena ke beberapa jamaah. Sengaja tidak menyebut nama-nama yang
+     * cocok: pengirimnya bisa siapa saja, dan membalas daftar nama ke nomor asing berarti
+     * membocorkan data jamaah ke orang yang cuma menebak-nebak nama.
+     */
+    private const NAMA_KEMBAR = "Ada lebih dari satu jamaah dengan nama itu, jadi izinnya belum bisa dicatat.\n\n"
+        . "Tulis nama lengkapnya sesuai data, atau minta petugas kelompok yang mencatatkan izinnya. Terima kasih 🙏";
+
+    /**
      * Webhook dari WA Gateway (D:\Projects\wa) — event "message.received".
      * Pesan berawalan "izin " (case-insensitive) diproses sebagai izin; pesan teks lain
      * dibalas panduan format supaya jamaah (termasuk yang lanjut usia) langsung paham caranya.
@@ -61,12 +69,16 @@ class WaController extends Controller
      */
     private function prosesIzin(string $pesan, string $dari): string
     {
-        [$jamaah, $keterangan] = $this->cocokkanJamaah($pesan);
+        [$jamaah, $keterangan, $kembar] = $this->cocokkanJamaah($pesan);
 
         if (! $jamaah) {
             $terdaftar = $this->jamaahDariNomor($dari);
 
             if ($terdaftar->isEmpty()) {
+                if ($kembar) {
+                    return self::NAMA_KEMBAR;
+                }
+
                 return $pesan === ''
                     ? self::FORMAT_BANTUAN
                     : 'Nama jamaah tidak ditemukan. Pastikan menulis nama lengkap sesuai data.';
@@ -207,7 +219,7 @@ class WaController extends Controller
      * nama terpanjang menang, dan nama yang ditulis kurang lengkap masih bisa dikenali —
      * asalkan hanya satu jamaah yang cocok (kalau ambigu, jamaah diminta menulis lengkap).
      *
-     * @return array{0: ?Jamaah, 1: string}
+     * @return array{0: ?Jamaah, 1: string, 2: bool} jamaah, keterangan, dan apakah namanya kena ke beberapa orang
      */
     private function cocokkanJamaah(string $pesan): array
     {
@@ -224,11 +236,18 @@ class WaController extends Controller
             $cocok = $aktif->filter(fn ($j) => Str::startsWith($this->ringkas($j->nama_lengkap), $ditulis));
 
             if ($cocok->count() === 1) {
-                return [$cocok->first(), implode(' ', array_slice($kata, $n))];
+                return [$cocok->first(), implode(' ', array_slice($kata, $n)), false];
+            }
+
+            // Potongan yang lebih pendek adalah awalan dari yang ini, jadi pasti kena ke
+            // orang-orang yang sama ditambah yang lain. Mencoba lebih pendek cuma menambah
+            // ambigu — lebih baik langsung bilang namanya kembar daripada "tidak ditemukan".
+            if ($cocok->count() > 1) {
+                return [null, '', true];
             }
         }
 
-        return [null, ''];
+        return [null, '', false];
     }
 
     /** Nama tanpa tanda baca, spasi, dan beda huruf besar/kecil: "MOCHAMAD BAYU AJI S.P." → "mochamadbayuajisp". */

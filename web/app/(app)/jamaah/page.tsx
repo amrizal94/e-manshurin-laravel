@@ -123,10 +123,36 @@ export default function JamaahPage() {
     } : { ...KOSONG, kelompok_id: kelompoks[0]?.id ?? 0 });
   }
 
+  /**
+   * Peringatan, bukan larangan. Dua orang memang boleh senama — di data yang ada pun
+   * sudah ada beberapa pasang — tapi satu orang jangan sampai didaftarkan dua kali.
+   * Jadi petugas dikonfirmasi dulu dan tetap boleh melanjutkan.
+   */
+  async function kembarDiabaikan(): Promise<boolean> {
+    if (!form) return true;
+    const nama = form.nama_lengkap.trim();
+    let kembar: Jamaah[] = [];
+    try {
+      const res = await api<{ data: Jamaah[] }>(`/jamaahs?q=${encodeURIComponent(nama)}&per_page=100`);
+      kembar = res.data.data.filter(
+        (j) => j.id !== editId && j.nama_lengkap.trim().toLowerCase() === nama.toLowerCase()
+      );
+    } catch {
+      return true; // gagal memeriksa jangan sampai menghalangi penyimpanan
+    }
+
+    if (kembar.length === 0) return true;
+
+    const dimana = kembar.map((j) => j.kelompok?.nama ?? "kelompok lain").join(", ");
+
+    return confirm(`Sudah ada jamaah bernama "${nama}" di ${dimana}.\n\nYakin ini orang yang berbeda?`);
+  }
+
   async function simpan(e: React.FormEvent) {
     e.preventDefault();
     if (!form) return;
     setError("");
+    if (!(await kembarDiabaikan())) return;
     const body = JSON.stringify({
       ...form,
       nama_panggilan: form.nama_panggilan || null,
