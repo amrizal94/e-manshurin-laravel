@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { KATEGORI_USIA } from "@/lib/labels";
@@ -32,6 +32,26 @@ interface Jamaah {
 
 const PER_PAGE = 25;
 
+/**
+ * Kelompok dan kategori yang terakhir dipakai menambah jamaah. Petugas biasanya
+ * mendata satu kelompok berturut-turut, dan form yang selalu mulai dari kelompok
+ * pertama menurut abjad bukan cuma merepotkan: yang lupa menggantinya menyimpan
+ * jamaah ke kelompok yang salah tanpa peringatan.
+ *
+ * Disimpan di browser, bukan di database — ini preferensi alat kerja, dan satu akun
+ * bisa dipakai bergantian di beberapa perangkat.
+ */
+const TERAKHIR = "jamaah-input-terakhir";
+
+function bacaTerakhir(): { kelompok_id?: number; kategori_usia?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(TERAKHIR) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
 const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
@@ -54,6 +74,8 @@ export default function JamaahPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<typeof KOSONG | null>(null);
+  const [tersimpan, setTersimpan] = useState("");
+  const namaRef = useRef<HTMLInputElement>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -111,6 +133,7 @@ export default function JamaahPage() {
 
   function buka(j?: Jamaah) {
     setEditId(j?.id ?? null);
+    setTersimpan("");
     setForm(j ? {
       nama_lengkap: j.nama_lengkap, nama_panggilan: j.nama_panggilan ?? "",
       jenis_kelamin: j.jenis_kelamin, tempat_lahir: j.tempat_lahir ?? "",
@@ -120,7 +143,19 @@ export default function JamaahPage() {
       status_kk: j.status_kk ?? "",
       kepala_keluarga_id: j.kepala_keluarga_id ?? "",
       aktif: j.aktif, keterangan_tidak_aktif: j.keterangan_tidak_aktif ?? "",
-    } : { ...KOSONG, kelompok_id: kelompoks[0]?.id ?? 0 });
+    } : bawaanBaru());
+  }
+
+  /** Filter tabel menang atas ingatan: daftar yang sedang disaring ke satu kelompok
+   *  adalah niat yang paling jelas saat itu juga. */
+  function bawaanBaru(): typeof KOSONG {
+    const terakhir = bacaTerakhir();
+
+    return {
+      ...KOSONG,
+      kelompok_id: Number(filterKelompok) || terakhir.kelompok_id || kelompoks[0]?.id || 0,
+      kategori_usia: filterKategori || terakhir.kategori_usia || KOSONG.kategori_usia,
+    };
   }
 
   /**
@@ -148,10 +183,11 @@ export default function JamaahPage() {
     return confirm(`Sudah ada jamaah bernama "${nama}" di ${dimana}.\n\nYakin ini orang yang berbeda?`);
   }
 
-  async function simpan(e: React.FormEvent) {
+  async function simpan(e: React.SyntheticEvent, lanjut = false) {
     e.preventDefault();
     if (!form) return;
     setError("");
+    setTersimpan("");
     if (!(await kembarDiabaikan())) return;
     const body = JSON.stringify({
       ...form,
@@ -170,7 +206,22 @@ export default function JamaahPage() {
         method: editId ? "PUT" : "POST",
         body,
       });
-      setForm(null);
+      // Yang diingat cuma dari penambahan: mengedit jamaah lama bisa dari kelompok
+      // mana saja, dan itu tidak boleh menggeser bawaan untuk data berikutnya.
+      if (!editId) {
+        localStorage.setItem(
+          TERAKHIR,
+          JSON.stringify({ kelompok_id: form.kelompok_id, kategori_usia: form.kategori_usia })
+        );
+      }
+
+      if (lanjut) {
+        setTersimpan(`"${form.nama_lengkap}" tersimpan.`);
+        setForm({ ...bawaanBaru(), kelompok_id: form.kelompok_id, kategori_usia: form.kategori_usia });
+        namaRef.current?.focus();
+      } else {
+        setForm(null);
+      }
       reload();
       muatKepalaKeluarga(); // KK baru harus langsung bisa dipilih tanpa refresh halaman
     } catch (err) {
@@ -344,7 +395,7 @@ export default function JamaahPage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label className={label} htmlFor="f-nama_lengkap">Nama Lengkap *</label>
-                <input id="f-nama_lengkap" required className={input} value={form.nama_lengkap}
+                <input id="f-nama_lengkap" ref={namaRef} required className={input} value={form.nama_lengkap}
                   onChange={(e) => setForm({ ...form, nama_lengkap: e.target.value })} />
               </div>
               <div>
@@ -459,9 +510,21 @@ export default function JamaahPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {tersimpan && <span className="mr-auto text-sm text-emerald-700">{tersimpan}</span>}
               <button type="button" onClick={() => setForm(null)}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Batal</button>
+              {/* Mendata satu kelompok berarti puluhan kali buka-tutup modal kalau form
+                  selalu ditutup. Kelompok dan kategorinya ditahan, namanya dikosongkan. */}
+              {!editId && (
+                <button type="button" onClick={(e) => {
+                  // type=button melewati validasi bawaan form, jadi dipanggil sendiri —
+                  // tanpa ini nama yang kosong baru ditolak setelah sampai server.
+                  if (e.currentTarget.form?.reportValidity() === false) return;
+                  simpan(e, true);
+                }}
+                  className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">Simpan &amp; Tambah Lagi</button>
+              )}
               <button type="submit"
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Simpan</button>
             </div>
