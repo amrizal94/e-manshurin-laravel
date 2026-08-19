@@ -18,10 +18,16 @@ interface Baris {
 }
 
 interface Hasil {
-  ringkasan: { total: number; siap: number; perhatian: number; error: number };
+  ringkasan: { total: number; siap: number; perhatian: number; error: number; kembar: number };
   catatan: string[];
   baris: Baris[];
   dipotong: number;
+}
+
+interface Impor {
+  impor_id: string;
+  disimpan: number;
+  dilewati: number;
 }
 
 const WAJIB = ["desa", "kelompok", "nama_lengkap", "jenis_kelamin", "kategori_usia"];
@@ -46,6 +52,8 @@ export default function ImporJamaahPage() {
   useRoleGuard(["super_admin", "admin"]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [hasil, setHasil] = useState<Hasil | null>(null);
+  const [impor, setImpor] = useState<Impor | null>(null);
+  const [lewatiKembar, setLewatiKembar] = useState(true);
   const [error, setError] = useState("");
   const [sibuk, setSibuk] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -68,6 +76,7 @@ export default function ImporJamaahPage() {
     if (!file) return;
     setError("");
     setHasil(null);
+    setImpor(null);
     setSibuk(true);
     const body = new FormData();
     body.append("file", file);
@@ -76,6 +85,46 @@ export default function ImporJamaahPage() {
       setHasil(res.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memeriksa file");
+    } finally {
+      setSibuk(false);
+    }
+  }
+
+  /** Filenya dikirim ulang, bukan hasil pemeriksaan tadi — yang tersimpan harus dibaca dari file yang sama. */
+  async function simpan() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !hasil) return;
+    const jumlah = hasil.ringkasan.total - (lewatiKembar ? hasil.ringkasan.kembar : 0);
+    if (!confirm(`Simpan ${jumlah} jamaah ke database?\n\nBisa dibatalkan sekaligus setelah ini, selama belum ada yang diabsen.`)) return;
+
+    setError("");
+    setSibuk(true);
+    const body = new FormData();
+    body.append("file", file);
+    body.append("lewati_kembar", lewatiKembar ? "1" : "0");
+    try {
+      const res = await api<Impor>("/jamaahs/impor", { method: "POST", body });
+      setImpor(res.data);
+      setHasil(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan");
+    } finally {
+      setSibuk(false);
+    }
+  }
+
+  async function batal() {
+    if (!impor) return;
+    if (!confirm(`Hapus ${impor.disimpan} jamaah yang baru saja diimpor?`)) return;
+
+    setError("");
+    setSibuk(true);
+    try {
+      await api(`/jamaahs/impor/${impor.impor_id}`, { method: "DELETE" });
+      setImpor(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal membatalkan impor");
     } finally {
       setSibuk(false);
     }
@@ -156,7 +205,7 @@ export default function ImporJamaahPage() {
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="File CSV"
-            onChange={() => { setHasil(null); setError(""); }}
+            onChange={() => { setHasil(null); setImpor(null); setError(""); }}
             className="text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium" />
           <button onClick={periksa} disabled={sibuk}
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
@@ -228,10 +277,57 @@ export default function ImporJamaahPage() {
             </p>
           )}
 
-          <p className="mt-4 rounded bg-gray-50 p-2 text-sm text-gray-600">
-            Langkah menyimpan ke database belum aktif. Pemeriksaan ini dulu yang dipakai
-            memastikan filenya benar.
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <h3 className="font-semibold text-gray-900">3. Simpan ke database</h3>
+            {hasil.ringkasan.error > 0 ? (
+              <p className="mt-1 text-sm text-gray-600">
+                Masih ada baris error — impor tidak dijalankan sebagian, jadi perbaiki dulu semuanya.
+              </p>
+            ) : (
+              <>
+                {hasil.ringkasan.kembar > 0 && (
+                  <label className="mt-2 flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" className="mt-0.5" checked={lewatiKembar}
+                      onChange={(e) => setLewatiKembar(e.target.checked)} />
+                    <span>
+                      Lewati {hasil.ringkasan.kembar} nama yang sudah ada di kelompoknya.
+                      <span className="block text-xs text-gray-500">
+                        Matikan kalau memang ada dua orang berbeda yang kebetulan senama.
+                      </span>
+                    </span>
+                  </label>
+                )}
+                <button onClick={simpan} disabled={sibuk}
+                  className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                  {sibuk ? "Menyimpan..." : `Impor ${hasil.ringkasan.total - (lewatiKembar ? hasil.ringkasan.kembar : 0)} jamaah`}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {impor && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <h3 className="font-semibold text-emerald-900">
+            {impor.disimpan} jamaah tersimpan
+            {impor.dilewati > 0 && `, ${impor.dilewati} dilewati karena namanya sudah ada`}
+          </h3>
+          <p className="mt-1 text-sm text-emerald-800">
+            Salah file? Batalkan sekarang — seluruh impor ini dihapus sekaligus. Setelah ada
+            yang diabsen atau difoto, pembatalan sekaligus tidak bisa lagi.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/jamaah"
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+              Lihat data jamaah
+            </Link>
+            <button onClick={batal} disabled={sibuk}
+              className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+              {sibuk ? "Membatalkan..." : "Batal impor ini"}
+            </button>
+          </div>
+          <p className="mt-2 font-mono text-xs text-emerald-700">impor_id: {impor.impor_id}</p>
         </div>
       )}
     </div>

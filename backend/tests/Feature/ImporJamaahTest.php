@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Absensi;
 use App\Models\Daerah;
 use App\Models\Desa;
 use App\Models\Jamaah;
+use App\Models\Kegiatan;
 use App\Models\Kelompok;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -187,5 +189,152 @@ class ImporJamaahTest extends TestCase
         $petugas->assignRole('absensi');
 
         $this->actingAs($petugas)->getJson('/api/jamaahs/impor/template')->assertForbidden();
+    }
+
+    private function simpan(string $isi, array $tambahan = []): TestResponse
+    {
+        return $this->actingAs($this->admin)->post('/api/jamaahs/impor', [
+            'file' => UploadedFile::fake()->createWithContent('data.csv', $isi),
+            ...$tambahan,
+        ], ['Accept' => 'application/json']);
+    }
+
+    public function test_impor_menyimpan_semua_kolom(): void
+    {
+        $isi = "desa,kelompok,nama_lengkap,nama_panggilan,jenis_kelamin,tempat_lahir,tanggal_lahir,alamat,no_hp,pekerjaan,kategori_usia,status_kk,status_mubaligh,aktif\n"
+            .'Wonokasian,Klanderan,Januar Agung,Januar,L,Kediri,30/11/1990,Jl. Contoh 1,81234567890,Wiraswasta,menikah,kepala_keluarga,ya,ya';
+
+        $this->simpan($isi)->assertCreated()->assertJsonPath('data.disimpan', 1);
+
+        $jamaah = Jamaah::sole();
+        $this->assertSame('Januar Agung', $jamaah->nama_lengkap);
+        $this->assertSame('Januar', $jamaah->nama_panggilan);
+        $this->assertSame('Kediri', $jamaah->tempat_lahir);
+        $this->assertSame('1990-11-30', $jamaah->tanggal_lahir->format('Y-m-d'));
+        $this->assertSame('081234567890', $jamaah->no_hp);
+        $this->assertSame('kepala_keluarga', $jamaah->status_kk);
+        $this->assertTrue($jamaah->status_mubaligh);
+        $this->assertSame($this->kelompok->id, $jamaah->kelompok_id);
+        $this->assertNotNull($jamaah->impor_id);
+    }
+
+    /** Impor separuh jalan adalah keadaan yang paling sulit dibereskan — tidak ada yang boleh masuk. */
+    public function test_satu_baris_error_membatalkan_seluruh_impor(): void
+    {
+        $this->simpan($this->csv(
+            'Wonokasian,Klanderan,Januar,L,usman,,',
+            'Wonokasian,Kelompok Hantu,Budi,L,usman,,'
+        ))->assertStatus(422)->assertJsonPath('message', fn ($p) => str_contains($p, '1 baris yang error'));
+
+        $this->assertSame(0, Jamaah::count());
+    }
+
+    public function test_nama_yang_sudah_ada_dilewati_secara_bawaan(): void
+    {
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Januar Agung',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        $this->simpan($this->csv(
+            'Wonokasian,Klanderan,Januar Agung,L,usman,,',
+            'Wonokasian,Klanderan,Budi Santoso,L,usman,,'
+        ))->assertCreated()->assertJsonPath('data.disimpan', 1)->assertJsonPath('data.dilewati', 1);
+
+        $this->assertSame(1, Jamaah::where('nama_lengkap', 'Januar Agung')->count());
+    }
+
+    public function test_kembar_ikut_disimpan_kalau_diminta(): void
+    {
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Januar Agung',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        $this->simpan($this->csv('Wonokasian,Klanderan,Januar Agung,L,usman,,'), ['lewati_kembar' => '0'])
+            ->assertCreated()
+            ->assertJsonPath('data.disimpan', 1);
+
+        $this->assertSame(2, Jamaah::where('nama_lengkap', 'Januar Agung')->count());
+    }
+
+    /** Nomor HP aneh cuma peringatan, bukan kembar — jangan ikut terbuang oleh "lewati yang sudah ada". */
+    public function test_peringatan_selain_kembar_tetap_disimpan(): void
+    {
+        $this->simpan($this->csv('Wonokasian,Klanderan,Januar Agung,L,usman,,123'))
+            ->assertCreated()
+            ->assertJsonPath('data.disimpan', 1);
+    }
+
+    public function test_batal_impor_menghapus_persis_baris_impor_itu(): void
+    {
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Data Lama',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'usman',
+        ]);
+
+        $imporId = $this->simpan($this->csv(
+            'Wonokasian,Klanderan,Januar Agung,L,usman,,',
+            'Wonokasian,Klanderan,Budi Santoso,L,usman,,'
+        ))->assertCreated()->json('data.impor_id');
+
+        $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")
+            ->assertOk()
+            ->assertJsonPath('data.dihapus', 2);
+
+        $this->assertSame(['Data Lama'], Jamaah::pluck('nama_lengkap')->all());
+    }
+
+    public function test_batal_impor_yang_sudah_dibatalkan_jadi_404(): void
+    {
+        $imporId = $this->simpan($this->csv('Wonokasian,Klanderan,Januar,L,usman,,'))->json('data.impor_id');
+
+        $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertOk();
+        $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertNotFound();
+    }
+
+    /** Absensi tidak ada di file CSV mana pun — menghapusnya berarti membuang data yang tak bisa dikembalikan. */
+    public function test_batal_impor_ditolak_kalau_sudah_ada_absensi(): void
+    {
+        $imporId = $this->simpan($this->csv('Wonokasian,Klanderan,Januar,L,usman,,'))->json('data.impor_id');
+
+        $kegiatan = Kegiatan::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama' => 'Pengajian Malam',
+            'jenis_pengajian' => 'umum',
+            'tanggal' => '2026-08-19',
+            'jam_mulai' => '19:00',
+            'jam_selesai' => '21:00',
+            'created_by' => $this->admin->id,
+        ]);
+        Absensi::create([
+            'kegiatan_id' => $kegiatan->id,
+            'jamaah_id' => Jamaah::sole()->id,
+            'status' => 'hadir',
+        ]);
+
+        $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn ($p) => str_contains($p, 'sudah punya absensi'));
+
+        $this->assertSame(1, Jamaah::count());
+    }
+
+    public function test_admin_desa_tidak_bisa_membatalkan_impor_desa_lain(): void
+    {
+        $imporId = $this->simpan($this->csv('Wonokasian,Klanderan,Januar,L,usman,,'))->json('data.impor_id');
+
+        $lain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Mangurejo']);
+        $adminLain = User::factory()->create(['desa_id' => $lain->id]);
+        $adminLain->assignRole('admin');
+
+        $this->actingAs($adminLain)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertNotFound();
+        $this->assertSame(1, Jamaah::count());
     }
 }

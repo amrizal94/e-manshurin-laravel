@@ -33,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('kelompoks', KelompokController::class)->except('show');
         Route::get('/jamaahs/impor/template', [ImporJamaahController::class, 'template']);
         Route::post('/jamaahs/impor/periksa', [ImporJamaahController::class, 'periksa']);
+        Route::post('/jamaahs/impor', [ImporJamaahController::class, 'simpan']);
+        Route::delete('/jamaahs/impor/{imporId}', [ImporJamaahController::class, 'batal']);
         Route::apiResource('jamaahs', JamaahController::class);
         Route::post('/jamaahs/{jamaah}/photos', [JamaahController::class, 'storePhoto']);
         Route::delete('/jamaahs/{jamaah}/photos/{photo}', [JamaahController::class, 'destroyPhoto']);

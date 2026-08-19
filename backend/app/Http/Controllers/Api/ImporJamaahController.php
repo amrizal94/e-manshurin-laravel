@@ -69,4 +69,39 @@ class ImporJamaahController extends Controller
 
         return response()->json(['success' => true, 'message' => 'OK', 'data' => $hasil]);
     }
+
+    /**
+     * Berkasnya diunggah ulang, bukan disimpan dari hasil pemeriksaan tadi. Kalau hasil
+     * pemeriksaan yang ditahan di sesi, data yang tersimpan bisa berbeda dari yang terakhir
+     * dilihat petugas — dan ini juga menjaga pemeriksaan tetap benar-benar tanpa jejak.
+     */
+    public function simpan(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+            'lewati_kembar' => ['boolean'],
+        ], ['file.mimes' => 'File harus CSV. Di Excel: File → Save As → CSV.']);
+
+        $hasil = (new ImporJamaah($request->user()))->simpan(
+            $request->file('file')->get(),
+            (bool) ($data['lewati_kembar'] ?? true),
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$hasil['disimpan']} jamaah tersimpan",
+            'data' => $hasil,
+        ], 201);
+    }
+
+    public function batal(Request $request, string $imporId): JsonResponse
+    {
+        $dihapus = (new ImporJamaah($request->user()))->batal($imporId);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$dihapus} jamaah hasil impor itu dihapus",
+            'data' => ['dihapus' => $dihapus],
+        ]);
+    }
 }

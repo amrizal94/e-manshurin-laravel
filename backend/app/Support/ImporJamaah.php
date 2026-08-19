@@ -2,9 +2,14 @@
 
 namespace App\Support;
 
+use App\Models\Absensi;
 use App\Models\Jamaah;
+use App\Models\JamaahPhoto;
 use App\Models\Kelompok;
 use App\Models\User;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Membaca CSV data jamaah dan melaporkan apa yang akan terjadi — tanpa menulis apa pun.
@@ -59,6 +64,18 @@ class ImporJamaah
         'mubaligh' => 'status_mubaligh', 'kk' => 'status_kk',
     ];
 
+    /**
+     * insert() massal menyusun daftar kolomnya dari baris pertama, jadi semua baris harus
+     * punya kunci yang sama persis — kolom yang tidak diisi CSV tetap harus hadir di sini.
+     */
+    private const KOLOM_KOSONG = [
+        'kelompok_id' => null, 'nama_lengkap' => '', 'nama_panggilan' => null,
+        'jenis_kelamin' => 'L', 'tempat_lahir' => null, 'tanggal_lahir' => null,
+        'alamat' => null, 'no_hp' => null, 'kategori_usia' => '', 'pekerjaan' => null,
+        'status_mubaligh' => false, 'status_kk' => null, 'kepala_keluarga_id' => null,
+        'aktif' => true, 'keterangan_tidak_aktif' => null,
+    ];
+
     /** @var array<string, Kelompok> kunci "desa|kelompok" huruf kecil */
     private array $kelompoks;
 
@@ -67,7 +84,7 @@ class ImporJamaah
 
     private string $pemisah = ',';
 
-    public function __construct(User $actor)
+    public function __construct(private User $actor)
     {
         $this->kelompoks = Kelompok::visibleTo($actor)->with('desa:id,nama')->get()
             ->keyBy(fn (Kelompok $k) => $this->kunci($k->desa?->nama ?? '', $k->nama))
@@ -79,35 +96,34 @@ class ImporJamaah
     }
 
     /**
-     * @return array{
-     *     ringkasan: array{total:int, siap:int, perhatian:int, error:int},
-     *     catatan: list<string>,
-     *     gagal: ?string,
-     *     baris: list<array>,
-     *     dipotong: int
-     * }
+     * Baca seluruh berkas jadi baris berstatus, tanpa menulis apa pun. Dipakai pemeriksaan
+     * maupun penyimpanan — yang dilaporkan ke layar dan yang masuk ke basis data harus
+     * hasil pembacaan yang persis sama, bukan dua jalur yang bisa berbeda diam-diam.
+     *
+     * @return array{gagal: ?string, catatan: list<string>, baris: list<array>}
      */
-    public function periksa(string $isi): array
+    private function urai(string $isi): array
     {
-        $kosong = ['ringkasan' => ['total' => 0, 'siap' => 0, 'perhatian' => 0, 'error' => 0], 'catatan' => [], 'gagal' => null, 'baris' => [], 'dipotong' => 0];
-
         $handle = $this->bukaCsv($isi);
         $judul = $this->baca($handle);
 
         if ($judul === false) {
-            return [...$kosong, 'gagal' => 'File kosong atau bukan CSV.'];
+            fclose($handle);
+
+            return ['gagal' => 'File kosong atau bukan CSV.', 'catatan' => [], 'baris' => []];
         }
 
         $kolom = $this->petakanJudul($judul);
         $hilang = array_diff(self::WAJIB, $kolom);
 
         if ($hilang !== []) {
-            return [...$kosong, 'gagal' => 'Kolom wajib belum ada: '.implode(', ', $hilang).'. Unduh templatnya dan salin data ke situ.'];
+            fclose($handle);
+
+            return ['gagal' => 'Kolom wajib belum ada: '.implode(', ', $hilang).'. Unduh templatnya dan salin data ke situ.', 'catatan' => [], 'baris' => []];
         }
 
         $catatan = [];
         $baris = [];
-        $hitung = ['siap' => 0, 'perhatian' => 0, 'error' => 0];
         $nomor = 1;
         $dalamFile = [];
         $adaTanggalGaris = false;
@@ -120,18 +136,13 @@ class ImporJamaah
                 continue;
             }
 
-            if ($hitung['siap'] + $hitung['perhatian'] + $hitung['error'] >= self::MAKS_BARIS) {
+            if (count($baris) >= self::MAKS_BARIS) {
                 fclose($handle);
 
-                return [...$kosong, 'gagal' => 'File berisi lebih dari '.self::MAKS_BARIS.' baris. Pecah per desa dulu — laporan kesalahan sepanjang itu tidak mungkin diperiksa.'];
+                return ['gagal' => 'File berisi lebih dari '.self::MAKS_BARIS.' baris. Pecah per desa dulu — laporan kesalahan sepanjang itu tidak mungkin diperiksa.', 'catatan' => [], 'baris' => []];
             }
 
-            $hasil = $this->periksaBaris($nomor, $this->ambilNilai($kolom, $mentah), $dalamFile, $adaTanggalGaris);
-            $hitung[$hasil['status']]++;
-
-            if ($hasil['status'] !== 'siap' || count($baris) < 5) {
-                $baris[] = $hasil;
-            }
+            $baris[] = $this->periksaBaris($nomor, $this->ambilNilai($kolom, $mentah), $dalamFile, $adaTanggalGaris);
         }
 
         fclose($handle);
@@ -144,15 +155,112 @@ class ImporJamaah
                 .'jadi 30/11/1990 berarti 30 November 1990. Periksa contoh di bawah; kalau file Anda bulan dulu, perbaiki file dulu.';
         }
 
-        $dipotong = max(0, count($baris) - self::MAKS_LAPORAN);
+        return ['gagal' => null, 'catatan' => $catatan, 'baris' => $baris];
+    }
+
+    /**
+     * @return array{
+     *     ringkasan: array{total:int, siap:int, perhatian:int, error:int, kembar:int},
+     *     catatan: list<string>,
+     *     gagal: ?string,
+     *     baris: list<array>,
+     *     dipotong: int
+     * }
+     */
+    public function periksa(string $isi): array
+    {
+        $hasil = $this->urai($isi);
+        $hitung = ['siap' => 0, 'perhatian' => 0, 'error' => 0, 'kembar' => 0];
+        $tampil = [];
+
+        foreach ($hasil['baris'] as $b) {
+            $hitung[$b['status']]++;
+            $hitung['kembar'] += (int) $b['kembar'];
+
+            // Yang siap cukup diwakili beberapa baris pertama sebagai contoh baca; yang
+            // bermasalah harus tampil semuanya, karena itu yang perlu dibetulkan.
+            if ($b['status'] !== 'siap' || count($tampil) < 5) {
+                $tampil[] = Arr::except($b, ['data', 'kembar']);
+            }
+        }
 
         return [
-            'ringkasan' => ['total' => array_sum($hitung), ...$hitung],
-            'catatan' => $catatan,
-            'gagal' => null,
-            'baris' => array_slice($baris, 0, self::MAKS_LAPORAN),
-            'dipotong' => $dipotong,
+            'ringkasan' => ['total' => count($hasil['baris']), ...$hitung],
+            'catatan' => $hasil['catatan'],
+            'gagal' => $hasil['gagal'],
+            'baris' => array_slice($tampil, 0, self::MAKS_LAPORAN),
+            'dipotong' => max(0, count($tampil) - self::MAKS_LAPORAN),
         ];
+    }
+
+    /**
+     * Semua baris atau tidak sama sekali. Impor separuh jalan adalah keadaan yang paling
+     * sulit dibereskan: tidak ada yang tahu lagi baris mana yang sudah masuk, dan
+     * mengulang file yang sama menggandakan yang berhasil tadi.
+     *
+     * @return array{impor_id: string, disimpan: int, dilewati: int}
+     */
+    public function simpan(string $isi, bool $lewatiKembar): array
+    {
+        $hasil = $this->urai($isi);
+        abort_if($hasil['gagal'] !== null, 422, $hasil['gagal']);
+
+        $error = count(array_filter($hasil['baris'], fn ($b) => $b['status'] === 'error'));
+        abort_if($error > 0, 422, "Masih ada {$error} baris yang error. Perbaiki filenya dulu — impor tidak dijalankan sebagian.");
+
+        $dipakai = array_values(array_filter($hasil['baris'], fn ($b) => ! ($lewatiKembar && $b['kembar'])));
+        abort_if($dipakai === [], 422, 'Tidak ada baris yang tersisa untuk disimpan.');
+
+        $imporId = (string) Str::uuid();
+        $sekarang = now();
+
+        DB::transaction(function () use ($dipakai, $imporId, $sekarang) {
+            // insert() langsung, bukan Model::create() dalam perulangan: activity log
+            // per baris cuma menghasilkan ribuan catatan yang tidak terbaca, dan satu
+            // catatan "impor N jamaah" di bawah ini lebih berguna untuk menelusurinya.
+            foreach (array_chunk($dipakai, 500) as $bagian) {
+                Jamaah::insert(array_map(fn ($b) => [
+                    ...self::KOLOM_KOSONG,
+                    ...$b['data'],
+                    'impor_id' => $imporId,
+                    'created_at' => $sekarang,
+                    'updated_at' => $sekarang,
+                ], $bagian));
+            }
+        });
+
+        activity()
+            ->causedBy($this->actor)
+            ->withProperties(['impor_id' => $imporId, 'disimpan' => count($dipakai)])
+            ->log('Impor '.count($dipakai).' jamaah');
+
+        return [
+            'impor_id' => $imporId,
+            'disimpan' => count($dipakai),
+            'dilewati' => count($hasil['baris']) - count($dipakai),
+        ];
+    }
+
+    /** Membatalkan satu impor: menghapus persis baris yang masuk lewat impor itu, bukan yang lain. */
+    public function batal(string $imporId): int
+    {
+        $id = Jamaah::visibleTo($this->actor)->where('impor_id', $imporId)->pluck('id');
+        abort_if($id->isEmpty(), 404, 'Impor itu tidak ditemukan — mungkin sudah dibatalkan.');
+
+        // Begitu seseorang sudah punya absensi atau foto wajah, menghapusnya berarti
+        // membuang data yang tidak ada di file CSV mana pun dan tidak bisa dikembalikan.
+        // Impor yang sudah terlanjur dipakai harus dibereskan satu per satu, sadar.
+        $terpakai = Absensi::whereIn('jamaah_id', $id)->count() + JamaahPhoto::whereIn('jamaah_id', $id)->count();
+        abort_if($terpakai > 0, 422, 'Sebagian jamaah dari impor ini sudah punya absensi atau foto wajah. Batal impor dibatalkan — hapus yang perlu satu per satu.');
+
+        Jamaah::whereIn('id', $id)->delete();
+
+        activity()
+            ->causedBy($this->actor)
+            ->withProperties(['impor_id' => $imporId, 'dihapus' => $id->count()])
+            ->log('Batal impor '.$id->count().' jamaah');
+
+        return $id->count();
     }
 
     /**
@@ -292,13 +400,18 @@ class ImporJamaah
 
         // Dua orang memang boleh senama — di data yang ada pun sudah ada beberapa pasang.
         // Jadi ini peringatan, bukan penolakan: yang dicegah satu orang masuk dua kali.
+        // Ditandai tersendiri (bukan cuma "perhatian") supaya pilihan "lewati yang sudah
+        // ada" tidak ikut membuang baris yang cuma nomor HP-nya terlihat aneh.
+        $kembar = false;
         if ($nama !== '' && $kelompok) {
             $kunciNama = $kelompok->id.'|'.mb_strtolower($nama);
             if (isset($this->sudahAda[$kunciNama])) {
                 $peringatan[] = 'sudah ada jamaah bernama sama di kelompok ini';
+                $kembar = true;
             }
             if (isset($dalamFile[$kunciNama])) {
                 $peringatan[] = 'nama ini muncul dua kali di file yang sama (baris '.$dalamFile[$kunciNama].')';
+                $kembar = true;
             }
             $dalamFile[$kunciNama] ??= $nomor;
         }
@@ -309,6 +422,8 @@ class ImporJamaah
             'kelompok' => $kelompok ? ($kelompok->desa?->nama.' / '.$kelompok->nama) : '-',
             'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
             'status' => $pesan !== [] ? 'error' : ($peringatan !== [] ? 'perhatian' : 'siap'),
+            'kembar' => $kembar,
+            'data' => $data,
             'pesan' => [...$pesan, ...$peringatan],
         ];
     }
