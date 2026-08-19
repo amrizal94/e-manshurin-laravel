@@ -12,6 +12,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Testing\TestResponse;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -324,6 +327,112 @@ class ImporJamaahTest extends TestCase
             ->assertJsonPath('message', fn ($p) => str_contains($p, 'sudah punya absensi'));
 
         $this->assertSame(1, Jamaah::count());
+    }
+
+    /**
+     * @param  list<list<mixed>>  $baris
+     * @param  array<int, Style>  $gayaKolom
+     */
+    private function xlsx(array $baris, array $gayaKolom = []): UploadedFile
+    {
+        $berkas = tempnam(sys_get_temp_dir(), 'uji').'.xlsx';
+        $writer = new XlsxWriter;
+        $writer->openToFile($berkas);
+        foreach ($baris as $i => $isi) {
+            $writer->addRow(Row::fromValuesWithStyles($isi, null, $i === 0 ? [] : $gayaKolom));
+        }
+        $writer->close();
+
+        return new UploadedFile($berkas, 'data.xlsx', null, null, true);
+    }
+
+    private function unggahXlsx(UploadedFile $berkas, string $ke = '/api/jamaahs/impor/periksa'): TestResponse
+    {
+        return $this->actingAs($this->admin)->post($ke, ['file' => $berkas], ['Accept' => 'application/json']);
+    }
+
+    public function test_template_xlsx_bisa_langsung_diperiksa_balik(): void
+    {
+        $berkas = tempnam(sys_get_temp_dir(), 'unduh').'.xlsx';
+        file_put_contents($berkas, $this->actingAs($this->admin)
+            ->get('/api/jamaahs/impor/template-xlsx')->assertOk()->streamedContent());
+
+        $this->actingAs($this->admin)->post('/api/jamaahs/impor/periksa', [
+            'file' => new UploadedFile($berkas, 'template-impor-jamaah.xlsx', null, null, true),
+        ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.error', 0)
+            ->assertJsonPath('data.ringkasan.total', 1);
+    }
+
+    /**
+     * Inti dari menerima .xlsx: sel tanggal sampai sebagai tanggal betulan, jadi tidak ada
+     * lagi tebak-tebakan hari-dulu/bulan-dulu maupun catatan peringatannya.
+     */
+    public function test_tanggal_xlsx_terbaca_tanpa_peringatan_urutan(): void
+    {
+        $berkas = $this->xlsx([
+            ['desa', 'kelompok', 'nama_lengkap', 'jenis_kelamin', 'kategori_usia', 'tanggal_lahir', 'no_hp'],
+            ['Wonokasian', 'Klanderan', 'Januar Agung', 'L', 'usman', new \DateTimeImmutable('1990-11-30'), 81234567890],
+        ], [5 => (new Style)->setFormat('yyyy-mm-dd')]);
+
+        $this->unggahXlsx($berkas)
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.siap', 1)
+            ->assertJsonPath('data.baris.0.tanggal_lahir', '1990-11-30')
+            ->assertJsonPath('data.catatan', []);
+    }
+
+    /** Berkas yang diunggah orang tidak boleh menjatuhkan permintaan jadi 500. */
+    public function test_kolom_berformat_tanggal_berisi_bukan_tanggal_ditolak_dengan_pesan(): void
+    {
+        $berkas = $this->xlsx([
+            ['desa', 'kelompok', 'nama_lengkap', 'jenis_kelamin', 'kategori_usia', 'no_hp'],
+            ['Wonokasian', 'Klanderan', 'Januar Agung', 'L', 'usman', 81234567890],
+        ], [5 => (new Style)->setFormat('yyyy-mm-dd')]);
+
+        $this->unggahXlsx($berkas)
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn ($p) => str_contains($p, 'format Tanggal'));
+    }
+
+    /**
+     * Sel tanggal yang kehilangan format angkanya sampai sebagai nomor seri Excel. Itu tetap
+     * satu tanggal yang pasti, jadi dibaca — bukan ditolak dengan pesan yang membingungkan
+     * orang yang di layarnya jelas-jelas melihat "30/11/1990".
+     */
+    public function test_nomor_seri_tanggal_excel_terbaca(): void
+    {
+        $berkas = $this->xlsx([
+            ['desa', 'kelompok', 'nama_lengkap', 'jenis_kelamin', 'kategori_usia', 'tanggal_lahir'],
+            ['Wonokasian', 'Klanderan', 'Januar Agung', 'L', 'usman', new \DateTimeImmutable('1990-11-30')],
+        ]);
+
+        $this->unggahXlsx($berkas)
+            ->assertOk()
+            ->assertJsonPath('data.baris.0.tanggal_lahir', '1990-11-30');
+    }
+
+    /** Nomor HP yang tersimpan sebagai angka jangan sampai jadi notasi ilmiah. */
+    public function test_impor_xlsx_menyimpan_nomor_hp_utuh(): void
+    {
+        $berkas = $this->xlsx([
+            ['desa', 'kelompok', 'nama_lengkap', 'jenis_kelamin', 'kategori_usia', 'no_hp'],
+            ['Wonokasian', 'Klanderan', 'Januar Agung', 'L', 'usman', 81234567890],
+        ]);
+
+        $this->unggahXlsx($berkas, '/api/jamaahs/impor')
+            ->assertCreated()
+            ->assertJsonPath('data.disimpan', 1);
+
+        $this->assertSame('081234567890', Jamaah::sole()->no_hp);
+    }
+
+    public function test_xls_lama_ditolak_dengan_jalan_keluarnya(): void
+    {
+        $this->periksa('apa saja', 'data.xls')
+            ->assertStatus(422)
+            ->assertJsonPath('errors.file.0', fn ($p) => str_contains($p, 'Save As → Excel Workbook (.xlsx)'));
     }
 
     public function test_admin_desa_tidak_bisa_membatalkan_impor_desa_lain(): void

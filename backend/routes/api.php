@@ -32,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('desas', DesaController::class)->except('show');
         Route::apiResource('kelompoks', KelompokController::class)->except('show');
         Route::get('/jamaahs/impor/template', [ImporJamaahController::class, 'template']);
+        Route::get('/jamaahs/impor/template-xlsx', [ImporJamaahController::class, 'templateXlsx']);
         Route::post('/jamaahs/impor/periksa', [ImporJamaahController::class, 'periksa']);
         Route::post('/jamaahs/impor', [ImporJamaahController::class, 'simpan']);
         Route::delete('/jamaahs/impor/{imporId}', [ImporJamaahController::class, 'batal']);

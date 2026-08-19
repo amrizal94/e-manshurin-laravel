@@ -7,15 +7,22 @@ use App\Models\Jamaah;
 use App\Models\JamaahPhoto;
 use App\Models\Kelompok;
 use App\Models\User;
+use DateTimeImmutable;
+use DateTimeInterface;
+use Generator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Exception\OpenSpoutException;
+use OpenSpout\Reader\XLSX\Reader as XlsxReader;
 
 /**
- * Membaca CSV data jamaah dan melaporkan apa yang akan terjadi — tanpa menulis apa pun.
+ * Membaca berkas data jamaah (.xlsx atau CSV) dan melaporkan apa yang akan terjadi.
  *
- * Sengaja CSV, bukan Excel: "Save As CSV" ada di setiap Excel, sementara membaca .xlsx
- * butuh paket tambahan yang berat cuma untuk mengurai tabel.
+ * .xlsx lebih disukai karena menyimpan tanggal sebagai tanggal betulan: seluruh tebak-tebakan
+ * hari-dulu/bulan-dulu yang terpaksa dilakukan pada CSV tidak berlaku di sana. CSV tetap
+ * diterima — Google Sheets dan LibreOffice mengekspornya dengan bersih.
  */
 class ImporJamaah
 {
@@ -102,23 +109,19 @@ class ImporJamaah
      *
      * @return array{gagal: ?string, catatan: list<string>, baris: list<array>}
      */
-    private function urai(string $isi): array
+    private function urai(string $path, string $ekstensi): array
     {
-        $handle = $this->bukaCsv($isi);
-        $judul = $this->baca($handle);
+        $sumber = $this->barisMentah($path, $ekstensi);
+        $judul = $sumber->current();
 
-        if ($judul === false) {
-            fclose($handle);
-
-            return ['gagal' => 'File kosong atau bukan CSV.', 'catatan' => [], 'baris' => []];
+        if ($judul === null) {
+            return ['gagal' => 'File kosong atau tidak terbaca.', 'catatan' => [], 'baris' => []];
         }
 
         $kolom = $this->petakanJudul($judul);
         $hilang = array_diff(self::WAJIB, $kolom);
 
         if ($hilang !== []) {
-            fclose($handle);
-
             return ['gagal' => 'Kolom wajib belum ada: '.implode(', ', $hilang).'. Unduh templatnya dan salin data ke situ.', 'catatan' => [], 'baris' => []];
         }
 
@@ -128,24 +131,21 @@ class ImporJamaah
         $dalamFile = [];
         $adaTanggalGaris = false;
 
-        while (($mentah = $this->baca($handle)) !== false) {
+        for ($sumber->next(); $sumber->valid(); $sumber->next()) {
+            $mentah = $sumber->current();
             $nomor++;
 
-            // fgetcsv memberi [null] untuk baris kosong; Excel gemar menyimpan puluhan di akhir file.
+            // Baris kosong: Excel gemar menyimpan puluhan di akhir berkas.
             if (trim(implode('', array_map(strval(...), $mentah))) === '') {
                 continue;
             }
 
             if (count($baris) >= self::MAKS_BARIS) {
-                fclose($handle);
-
                 return ['gagal' => 'File berisi lebih dari '.self::MAKS_BARIS.' baris. Pecah per desa dulu — laporan kesalahan sepanjang itu tidak mungkin diperiksa.', 'catatan' => [], 'baris' => []];
             }
 
             $baris[] = $this->periksaBaris($nomor, $this->ambilNilai($kolom, $mentah), $dalamFile, $adaTanggalGaris);
         }
-
-        fclose($handle);
 
         if ($this->pemisah !== ',') {
             $catatan[] = 'File dibaca dengan pemisah "'.$this->pemisah.'".';
@@ -167,9 +167,9 @@ class ImporJamaah
      *     dipotong: int
      * }
      */
-    public function periksa(string $isi): array
+    public function periksa(string $path, string $ekstensi): array
     {
-        $hasil = $this->urai($isi);
+        $hasil = $this->urai($path, $ekstensi);
         $hitung = ['siap' => 0, 'perhatian' => 0, 'error' => 0, 'kembar' => 0];
         $tampil = [];
 
@@ -200,9 +200,9 @@ class ImporJamaah
      *
      * @return array{impor_id: string, disimpan: int, dilewati: int}
      */
-    public function simpan(string $isi, bool $lewatiKembar): array
+    public function simpan(string $path, string $ekstensi, bool $lewatiKembar): array
     {
-        $hasil = $this->urai($isi);
+        $hasil = $this->urai($path, $ekstensi);
         abort_if($hasil['gagal'] !== null, 422, $hasil['gagal']);
 
         $error = count(array_filter($hasil['baris'], fn ($b) => $b['status'] === 'error'));
@@ -261,6 +261,87 @@ class ImporJamaah
             ->log('Batal impor '.$id->count().' jamaah');
 
         return $id->count();
+    }
+
+    /**
+     * Baris mentah dari berkas, apa pun formatnya, sebagai deretan string. Dibaca sambil
+     * jalan: berkas yang kelewat panjang berhenti di baris ke-2001, bukan setelah semuanya
+     * terlanjur dimuat ke memori.
+     *
+     * @return Generator<int, list<string>>
+     */
+    private function barisMentah(string $path, string $ekstensi): Generator
+    {
+        if (mb_strtolower($ekstensi) === 'xlsx') {
+            yield from $this->barisXlsx($path);
+
+            return;
+        }
+
+        yield from $this->barisCsv((string) file_get_contents($path));
+    }
+
+    /** @return Generator<int, list<string>> */
+    private function barisCsv(string $isi): Generator
+    {
+        $handle = $this->bukaCsv($isi);
+
+        try {
+            while (($mentah = $this->baca($handle)) !== false) {
+                yield array_map(strval(...), $mentah);
+            }
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Hanya lembar pertama. Berkas dengan beberapa lembar hampir selalu berarti satu lembar
+     * data dan sisanya catatan; menggabungkan semuanya diam-diam lebih berbahaya daripada
+     * mengabaikan yang tidak diminta.
+     *
+     * @return Generator<int, list<string>>
+     */
+    private function barisXlsx(string $path): Generator
+    {
+        $reader = new XlsxReader;
+
+        try {
+            $reader->open($path);
+
+            foreach ($reader->getSheetIterator() as $sheet) {
+                foreach ($sheet->getRowIterator() as $row) {
+                    yield array_map($this->selXlsx(...), $row->getCells());
+                }
+
+                break;
+            }
+        } catch (OpenSpoutException $e) {
+            // Berkas yang diunggah orang tidak boleh menjatuhkan permintaan jadi 500. Yang
+            // paling sering: satu kolom diberi format Tanggal padahal isinya bukan tanggal
+            // (nomor HP di kolom berformat tanggal), dan pembacanya menolak nilainya.
+            abort(422, 'Berkas .xlsx tidak terbaca. Biasanya karena ada kolom yang diberi format Tanggal padahal isinya bukan tanggal — misalnya nomor HP. Atur ulang format kolomnya di Excel, atau simpan sebagai CSV.');
+        } finally {
+            $reader->close();
+        }
+    }
+
+    /**
+     * Inilah untungnya .xlsx: sel tanggal sampai ke sini sebagai tanggal betulan, jadi
+     * 30/11/1990 tidak perlu ditebak urutannya seperti di CSV. Nomor HP yang tersimpan
+     * sebagai angka pun tidak berubah jadi notasi ilmiah.
+     */
+    private function selXlsx(Cell $sel): string
+    {
+        $nilai = $sel->getValue();
+
+        return match (true) {
+            $nilai instanceof DateTimeInterface => $nilai->format('Y-m-d'),
+            is_bool($nilai) => $nilai ? 'ya' : 'tidak',
+            is_float($nilai) => rtrim(rtrim(number_format($nilai, 10, '.', ''), '0'), '.'),
+            $nilai === null => '',
+            default => (string) $nilai,
+        };
     }
 
     /**
@@ -440,6 +521,13 @@ class ImporJamaah
             return checkdate((int) $m[2], (int) $m[3], (int) $m[1])
                 ? [sprintf('%04d-%02d-%02d', $m[1], $m[2], $m[3]), null, false]
                 : [null, 'tanggal_lahir "'.$nilai.'" bukan tanggal yang ada', false];
+        }
+
+        // Sel tanggal .xlsx yang kehilangan format angkanya sampai ke sini sebagai nomor seri
+        // Excel — 33207 berarti 30 November 1990. Tidak ada ambiguitas hari/bulan di sini,
+        // jadi langsung dipakai. Dibatasi 1910–2100 supaya angka nyasar tetap ditolak.
+        if (preg_match('/^\d{4,5}$/', $nilai) && (int) $nilai >= 3653 && (int) $nilai <= 73415) {
+            return [(new DateTimeImmutable('1899-12-30'))->modify('+'.(int) $nilai.' days')->format('Y-m-d'), null, false];
         }
 
         if (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $nilai, $m)) {

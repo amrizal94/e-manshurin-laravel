@@ -62,10 +62,13 @@ export default function ImporJamaahPage() {
     api<Kelompok[]>("/kelompoks").then((res) => setKelompoks(res.data)).catch(() => {});
   }, []);
 
-  async function ambilTemplate() {
+  async function ambilTemplate(jenis: "xlsx" | "csv") {
     setError("");
     try {
-      await unduh("/jamaahs/impor/template", "template-impor-jamaah.csv");
+      await unduh(
+        jenis === "xlsx" ? "/jamaahs/impor/template-xlsx" : "/jamaahs/impor/template",
+        `template-impor-jamaah.${jenis}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal mengunduh templat");
     }
@@ -144,12 +147,25 @@ export default function ImporJamaahPage() {
       <div className={kotak}>
         <h3 className="font-semibold text-gray-900">1. Unduh templat</h3>
         <p className="mt-1 text-sm text-gray-600">
-          Isi datanya di templat ini, jangan bikin kolom sendiri. Simpan lewat <b>File → Save As → CSV</b>.
+          Isi datanya di templat ini, jangan bikin kolom sendiri. Simpan seperti biasa, lalu
+          unggah berkasnya di langkah 2 — tidak perlu diubah jadi format lain.
         </p>
-        <button onClick={ambilTemplate}
-          className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-          Unduh template-impor-jamaah.csv
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => ambilTemplate("xlsx")}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+            Templat Excel (.xlsx)
+          </button>
+          <button onClick={() => ambilTemplate("csv")}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            Templat CSV
+          </button>
+        </div>
+        {/* .xlsx menyimpan tanggal sebagai tanggal betulan, CSV cuma sebagai tulisan —
+            di situlah 30/11 vs 11/30 jadi soal. */}
+        <p className="mt-2 text-xs text-gray-500">
+          Pakai .xlsx kalau Anda mengisinya di Excel — tanggal lahirnya terbaca pasti.
+          CSV untuk Google Sheets atau LibreOffice.
+        </p>
 
         <dl className="mt-4 space-y-2 text-sm">
           <div>
@@ -171,6 +187,7 @@ export default function ImporJamaahPage() {
           <div>
             <dt className="text-xs font-medium text-gray-500">Isi tanggal_lahir</dt>
             <dd className="text-xs text-gray-800">
+              Di .xlsx: ketik biasa, Excel yang mengurus. Di CSV:{" "}
               <span className="font-mono">1990-11-30</span> (tahun-bulan-tanggal). Kalau ragu,
               kosongkan saja — tanggal lahir salah lebih repot daripada kosong.
             </dd>
@@ -201,10 +218,11 @@ export default function ImporJamaahPage() {
         <h3 className="font-semibold text-gray-900">2. Periksa file</h3>
         <p className="mt-1 text-sm text-gray-600">
           Filenya cuma dibaca dan dilaporkan — <b>belum ada data yang tersimpan</b>.
-          Maksimal 2000 baris per file; kalau lebih, pecah per desa.
+          Terima .xlsx dan .csv, maksimal 2000 baris per file; kalau lebih, pecah per desa.
+          Format .xls lama (Excel 2003) belum didukung.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input ref={fileRef} type="file" accept=".csv,text/csv" aria-label="File CSV"
+          <input ref={fileRef} type="file" accept=".xlsx,.csv" aria-label="File .xlsx atau CSV"
             onChange={() => { setHasil(null); setImpor(null); setError(""); }}
             className="text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium" />
           <button onClick={periksa} disabled={sibuk}
