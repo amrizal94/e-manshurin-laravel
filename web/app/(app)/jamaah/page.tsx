@@ -247,10 +247,16 @@ export default function JamaahPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Data Jamaah</h2>
-        <button
-          onClick={() => buka()}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-        >+ Tambah Jamaah</button>
+        <div className="flex gap-2">
+          <Link
+            href="/jamaah/impor"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >Impor CSV</Link>
+          <button
+            onClick={() => buka()}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >+ Tambah Jamaah</button>
+        </div>
       </div>
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}

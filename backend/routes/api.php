@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\DaerahController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DesaController;
 use App\Http\Controllers\Api\FaceController;
+use App\Http\Controllers\Api\ImporJamaahController;
 use App\Http\Controllers\Api\JamaahController;
 use App\Http\Controllers\Api\KegiatanController;
 use App\Http\Controllers\Api\KelompokController;
@@ -30,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('daerahs', DaerahController::class)->except('show');
         Route::apiResource('desas', DesaController::class)->except('show');
         Route::apiResource('kelompoks', KelompokController::class)->except('show');
+        Route::get('/jamaahs/impor/template', [ImporJamaahController::class, 'template']);
+        Route::post('/jamaahs/impor/periksa', [ImporJamaahController::class, 'periksa']);
         Route::apiResource('jamaahs', JamaahController::class);
         Route::post('/jamaahs/{jamaah}/photos', [JamaahController::class, 'storePhoto']);
         Route::delete('/jamaahs/{jamaah}/photos/{photo}', [JamaahController::class, 'destroyPhoto']);

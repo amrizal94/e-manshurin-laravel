@@ -18,6 +18,26 @@ function isKioskPath(pathname: string): boolean {
   return /^\/absen-wajah/.test(pathname) || /^\/kegiatan\/\d+\/absen-wajah/.test(pathname);
 }
 
+/**
+ * Unduh berkas dari endpoint yang butuh token. `<a href>` biasa tidak bisa: tokennya di
+ * localStorage, bukan cookie, jadi permintaannya sampai tanpa Authorization.
+ */
+export async function unduh(path: string, namaFile: string): Promise<void> {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`${BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) throw new ApiError(`Gagal mengunduh (HTTP ${res.status})`, res.status);
+
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = namaFile;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function api<T = unknown>(
   path: string,
   opts: RequestInit = {}
