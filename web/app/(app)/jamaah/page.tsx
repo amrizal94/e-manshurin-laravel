@@ -45,6 +45,35 @@ type Mode = "orang" | "keluarga";
 
 const PER_PAGE = 25;
 
+/**
+ * Urutan baca susunan rumah. Menurut abjad, anak umur 9 tahun bisa berdiri di atas
+ * bapaknya — susunannya jadi harus dieja, bukan dilihat.
+ */
+const URUT_KK = Object.keys(STATUS_KK);
+
+function anggotaTerurut(k: Keluarga): Jamaah[] {
+  const urut = (j: Jamaah) => {
+    const i = j.status_kk ? URUT_KK.indexOf(j.status_kk) : -1;
+
+    return i < 0 ? URUT_KK.length : i; // yang belum diisi status KK-nya jatuh ke bawah
+  };
+
+  return [...k.anggota].sort((a, b) => urut(a) - urut(b) || a.nama_lengkap.localeCompare(b.nama_lengkap));
+}
+
+/** Cukup untuk memutuskan kartu ini perlu dibuka atau tidak. */
+function ringkasKeluarga(k: Keluarga): string {
+  const l = k.anggota.filter((j) => j.jenis_kelamin === "L").length;
+  const p = k.anggota.length - l;
+  const kelompok = k.anggota[0]?.kelompok;
+
+  return [
+    `${k.anggota.length} anggota`,
+    `${l}L ${p}P`,
+    kelompok ? kelompok.nama + (kelompok.desa ? ` — ${kelompok.desa.nama}` : "") : null,
+  ].filter(Boolean).join(" · ");
+}
+
 /** Nama kartu keluarga: kepala keluarganya, kalau belum ada baru anggota mana saja. */
 function namaKeluarga(k: Keluarga): string {
   const kepala = k.anggota.find((j) => j.id === k.kepala_keluarga_id);
@@ -100,6 +129,9 @@ export default function JamaahPage() {
   const [mode, setMode] = useState<Mode>("orang");
   const [tanpaKeluarga, setTanpaKeluarga] = useState(false);
   const [belumMasuk, setBelumMasuk] = useState(0);
+  // Kartu yang lipatannya diubah tangan. Yang tidak ada di sini ikut aturan bawaan:
+  // keluarga bermasalah terbuka sendiri, yang sudah beres tetap terlipat.
+  const [lipatan, setLipatan] = useState<Record<string, boolean>>({});
   const [pilihan, setPilihan] = useState<number[]>([]);
   const [kepalaTujuan, setKepalaTujuan] = useState("");
   const [statusBorongan, setStatusBorongan] = useState("");
@@ -533,31 +565,31 @@ export default function JamaahPage() {
               {tanpaKeluarga ? "Semua jamaah sudah masuk keluarga" : "Belum ada data"}
             </p>
           )}
-          {keluargas.map((k) => (
+          {keluargas.map((k) => {
+            // Yang sudah beres tidak perlu dibuka; yang bermasalah justru itu pekerjaannya.
+            const terbuka = lipatan[k.kunci] ?? k.masalah.length > 0;
+
+            return (
             <div key={k.kunci} className="rounded-xl border border-gray-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex min-w-0 items-start gap-2">
-                  {tanpaKeluarga && filterKelompok && k.anggota.length === 1 && (
-                    <input type="checkbox" className="mt-1"
-                      aria-label={`Pilih ${k.anggota[0].nama_lengkap}`}
-                      checked={pilihan.includes(k.anggota[0].id)}
-                      onChange={() => pilih(k.anggota[0].id)} />
-                  )}
-                  <div className="min-w-0">
-                  <p className="font-medium text-gray-900">
-                    {/* Dinamai menurut kepala keluarganya; anggota[0] cuma yang paling awal
-                        menurut abjad, dan itu sering anaknya. */}
-                    {namaKeluarga(k)}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {k.anggota.length} anggota · {k.anggota[0]?.kelompok?.nama}
-                    {k.anggota[0]?.kelompok?.desa && ` — ${k.anggota[0].kelompok.desa.nama}`}
-                  </p>
-                  </div>
-                </div>
-                <button onClick={() => tambahAnggota(k)}
-                  className="shrink-0 rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
-                  + Tambah anggota
+              <div className="flex min-w-0 items-start gap-2">
+                {tanpaKeluarga && filterKelompok && k.anggota.length === 1 && (
+                  <input type="checkbox" className="mt-1"
+                    aria-label={`Pilih ${k.anggota[0].nama_lengkap}`}
+                    checked={pilihan.includes(k.anggota[0].id)}
+                    onChange={() => pilih(k.anggota[0].id)} />
+                )}
+                <button type="button" aria-expanded={terbuka}
+                  onClick={() => setLipatan({ ...lipatan, [k.kunci]: !terbuka })}
+                  className="flex min-w-0 flex-1 items-start gap-2 text-left">
+                  <span className={`mt-1 shrink-0 text-xs text-gray-400 transition-transform ${terbuka ? "rotate-90" : ""}`}>▶</span>
+                  <span className="min-w-0">
+                    <span className="block font-medium text-gray-900">
+                      {/* Dinamai menurut kepala keluarganya; anggota[0] cuma yang paling awal
+                          menurut abjad, dan itu sering anaknya. */}
+                      {namaKeluarga(k)}
+                    </span>
+                    <span className="block text-xs text-gray-400">{ringkasKeluarga(k)}</span>
+                  </span>
                 </button>
               </div>
 
@@ -565,8 +597,17 @@ export default function JamaahPage() {
                 <p key={m} className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">{m}</p>
               ))}
 
+              {terbuka && (
+              <>
+              <div className="mt-3">
+                <button onClick={() => tambahAnggota(k)}
+                  className="rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+                  + Tambah anggota
+                </button>
+              </div>
+
               <ul className="mt-3 divide-y divide-gray-100 border-t border-gray-100">
-                {k.anggota.map((j) => (
+                {anggotaTerurut(k).map((j) => (
                   <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
                     <span className="font-medium text-gray-900">{j.nama_lengkap}</span>
                     <span className={`rounded px-2 py-0.5 text-xs ${j.status_kk
@@ -585,8 +626,11 @@ export default function JamaahPage() {
                   </li>
                 ))}
               </ul>
+              </>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
