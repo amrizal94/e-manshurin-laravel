@@ -1,1 +1,9 @@
 .claude/settings.local.json
+
+# Tangkapan layar dan rekaman yang dipakai waktu melapor bug, bukan bagian aplikasi.
+# Sengaja dibatasi ke akar repo: gambar di dalam backend/ atau web/ bisa jadi aset.
+/*.png
+/*.jpg
+/*.jpeg
+/*.ogg
+/*.mp4
