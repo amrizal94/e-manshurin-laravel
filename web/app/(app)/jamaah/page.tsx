@@ -772,12 +772,10 @@ export default function JamaahPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className={label} htmlFor="f-kode_keluarga">Kode Keluarga</label>
-                <input id="f-kode_keluarga" className={input} value={form.kode_keluarga} placeholder="mis. KK-SUGENG-01"
-                  onChange={(e) => setForm({ ...form, kode_keluarga: e.target.value })} />
-                <p className="mt-1 text-xs text-gray-400">Samakan untuk satu rumah. Dipakai impor untuk menyambungkan keluarga.</p>
-              </div>
+              {/* Kode keluarga tidak diisi lewat form. Milik jalur impor saja: dua kelompok
+                  yang kebetulan mengetik kode sama akan menempelkan dua keluarga berbeda
+                  jadi satu. Nilainya tetap ikut terkirim apa adanya lewat form.kode_keluarga
+                  supaya keluarga hasil impor tidak kehilangan kodenya waktu diedit. */}
               <div>
                 <label className={label} htmlFor="f-kepala_keluarga_id">Kepala Keluarga</label>
                 <select id="f-kepala_keluarga_id" className={input} value={form.kepala_keluarga_id}
