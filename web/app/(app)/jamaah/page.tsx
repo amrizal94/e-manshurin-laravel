@@ -45,6 +45,14 @@ type Mode = "orang" | "keluarga";
 
 const PER_PAGE = 25;
 
+/** Nama kartu keluarga: kepala keluarganya, kalau belum ada baru anggota mana saja. */
+function namaKeluarga(k: Keluarga): string {
+  const kepala = k.anggota.find((j) => j.id === k.kepala_keluarga_id);
+  if (kepala) return `Keluarga ${kepala.nama_lengkap}`;
+
+  return k.anggota.length === 1 ? k.anggota[0].nama_lengkap : `Keluarga ${k.anggota[0]?.nama_lengkap ?? "—"}`;
+}
+
 /**
  * Mode daftar yang terakhir dipakai. Melengkapi data KK itu pekerjaan berjam-jam;
  * kembali ke mode per orang tiap kali halaman dibuka bikin pekerjaan itu dimulai
@@ -530,8 +538,9 @@ export default function JamaahPage() {
                   )}
                   <div className="min-w-0">
                   <p className="font-medium text-gray-900">
-                    {k.kode_keluarga ?? k.anggota[0]?.nama_lengkap}
-                    {!k.kode_keluarga && <span className="ml-2 text-xs font-normal text-gray-400">tanpa kode keluarga</span>}
+                    {/* Dinamai menurut kepala keluarganya; anggota[0] cuma yang paling awal
+                        menurut abjad, dan itu sering anaknya. */}
+                    {namaKeluarga(k)}
                   </p>
                   <p className="text-xs text-gray-400">
                     {k.anggota.length} anggota · {k.anggota[0]?.kelompok?.nama}
