@@ -33,7 +33,7 @@ interface Impor {
 const WAJIB = ["desa", "kelompok", "nama_lengkap", "jenis_kelamin", "kategori_usia"];
 const OPSIONAL = [
   "nama_panggilan", "tempat_lahir", "tanggal_lahir", "alamat", "no_hp",
-  "pekerjaan", "status_kk", "status_mubaligh", "aktif", "keterangan_tidak_aktif",
+  "pekerjaan", "status_kk", "kode_keluarga", "status_mubaligh", "aktif", "keterangan_tidak_aktif",
 ];
 
 const WARNA: Record<Baris["status"], string> = {
@@ -183,6 +183,16 @@ export default function ImporJamaahPage() {
           <div>
             <dt className="text-xs font-medium text-gray-500">Isi jenis_kelamin</dt>
             <dd className="font-mono text-xs text-gray-800">L, P</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-gray-500">Isi kode_keluarga</dt>
+            <dd className="text-xs text-gray-800">
+              Kode bebas yang <strong>disamakan untuk satu rumah</strong> — mis.{" "}
+              <span className="font-mono">KK-SUGENG-01</span>. Satu barisnya diisi{" "}
+              <span className="font-mono">status_kk = kepala_keluarga</span>; sisanya otomatis
+              tersambung ke dia. Jangan pakai nomor KK 16 digit — yang dibutuhkan cuma
+              pengelompokan, bukan nomor identitasnya.
+            </dd>
           </div>
           <div>
             <dt className="text-xs font-medium text-gray-500">Isi tanggal_lahir</dt>

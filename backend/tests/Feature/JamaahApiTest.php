@@ -16,6 +16,7 @@ class JamaahApiTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Kelompok $kelompok;
 
     protected function setUp(): void
@@ -267,5 +268,82 @@ class JamaahApiTest extends TestCase
         $absensi->assignRole('absensi');
 
         $this->actingAs($absensi)->postJson('/api/daerahs', ['nama' => 'X'])->assertForbidden();
+    }
+
+    /** @param array<string, mixed> $tambahan */
+    private function jamaah(string $nama, array $tambahan = []): Jamaah
+    {
+        return Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => $nama,
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+            ...$tambahan,
+        ]);
+    }
+
+    public function test_filter_keluarga_memunculkan_serumah_lewat_kepala_keluarga_id(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+        $this->jamaah('Siti', ['status_kk' => 'istri', 'kepala_keluarga_id' => $sugeng->id]);
+        $this->jamaah('Orang Lain');
+
+        // Ditanya dari sisi anggota, bukan kepalanya — dari mana pun ditanya, seisi rumah yang keluar.
+        $nama = collect($this->actingAs($this->admin)
+            ->getJson('/api/jamaahs?keluarga_id='.Jamaah::where('nama_lengkap', 'Siti')->sole()->id)
+            ->assertOk()->json('data.data'))->pluck('nama_lengkap')->sort()->values()->all();
+
+        $this->assertSame(['Siti', 'Sugeng'], $nama);
+    }
+
+    public function test_filter_keluarga_memunculkan_serumah_lewat_kode_keluarga(): void
+    {
+        $this->jamaah('Sugeng', ['kode_keluarga' => 'KK-01']);
+        $this->jamaah('Siti', ['kode_keluarga' => 'KK-01']);
+        $this->jamaah('Orang Lain', ['kode_keluarga' => 'KK-02']);
+
+        $this->actingAs($this->admin)
+            ->getJson('/api/jamaahs?keluarga_id='.Jamaah::where('nama_lengkap', 'Sugeng')->sole()->id)
+            ->assertOk()
+            ->assertJsonCount(2, 'data.data');
+    }
+
+    public function test_filter_keluarga_untuk_jamaah_di_luar_wilayah_ditolak(): void
+    {
+        $lain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
+        $kelompokLain = Kelompok::create(['desa_id' => $lain->id, 'nama' => 'Kelompok 2']);
+        $luar = Jamaah::create([
+            'kelompok_id' => $kelompokLain->id, 'nama_lengkap' => 'Luar',
+            'jenis_kelamin' => 'L', 'kategori_usia' => 'menikah',
+        ]);
+
+        $adminDesa = User::factory()->create(['desa_id' => $this->kelompok->desa_id]);
+        $adminDesa->assignRole('admin');
+
+        $this->actingAs($adminDesa)->getJson('/api/jamaahs?keluarga_id='.$luar->id)->assertNotFound();
+    }
+
+    public function test_pencarian_ikut_mencocokkan_kode_keluarga(): void
+    {
+        $this->jamaah('Sugeng', ['kode_keluarga' => 'KK-SUGENG-01']);
+        $this->jamaah('Siti', ['kode_keluarga' => 'KK-SUGENG-01']);
+        $this->jamaah('Orang Lain', ['kode_keluarga' => 'KK-LAIN-01']);
+
+        $this->actingAs($this->admin)->getJson('/api/jamaahs?search=kk-sugeng')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.data');
+    }
+
+    public function test_kode_keluarga_disimpan_huruf_besar_lewat_form(): void
+    {
+        $this->actingAs($this->admin)->postJson('/api/jamaahs', [
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Sugeng',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+            'kode_keluarga' => '  kk-01 ',
+        ])->assertCreated();
+
+        $this->assertSame('KK-01', Jamaah::sole()->kode_keluarga);
     }
 }

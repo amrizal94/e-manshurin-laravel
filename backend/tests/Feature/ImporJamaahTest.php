@@ -446,4 +446,112 @@ class ImporJamaahTest extends TestCase
         $this->actingAs($adminLain)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertNotFound();
         $this->assertSame(1, Jamaah::count());
     }
+
+    private function csvKeluarga(string ...$baris): string
+    {
+        return implode('
+', ['desa,kelompok,nama_lengkap,jenis_kelamin,kategori_usia,status_kk,kode_keluarga', ...$baris]);
+    }
+
+    public function test_kode_keluarga_menautkan_anggota_ke_kepala_keluarga(): void
+    {
+        $this->simpan($this->csvKeluarga(
+            'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KK-01',
+            'Wonokasian,Klanderan,Siti,P,menikah,istri,KK-01',
+            'Wonokasian,Klanderan,Rian,L,remaja,anak,KK-01',
+        ))->assertCreated()->assertJsonPath('data.disimpan', 3);
+
+        $sugeng = Jamaah::where('nama_lengkap', 'Sugeng')->sole();
+        $this->assertNull($sugeng->kepala_keluarga_id);
+        $this->assertSame(2, $sugeng->anggotaKeluarga()->count());
+        $this->assertSame('KK-01', Jamaah::where('nama_lengkap', 'Rian')->sole()->kode_keluarga);
+    }
+
+    public function test_kode_keluarga_disamakan_jadi_huruf_besar(): void
+    {
+        $this->simpan($this->csvKeluarga(
+            'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KK-01',
+            'Wonokasian,Klanderan,Siti,P,menikah,istri,kk-01',
+        ))->assertCreated();
+
+        $this->assertSame(
+            Jamaah::where('nama_lengkap', 'Sugeng')->sole()->id,
+            Jamaah::where('nama_lengkap', 'Siti')->sole()->kepala_keluarga_id,
+        );
+    }
+
+    public function test_dua_kepala_keluarga_dalam_satu_kode_ditolak(): void
+    {
+        $isi = $this->csvKeluarga(
+            'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KK-01',
+            'Wonokasian,Klanderan,Bambang,L,menikah,kepala_keluarga,KK-01',
+        );
+
+        $this->periksa($isi)
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.error', 2)
+            ->assertJsonPath('data.baris.0.pesan.0', fn ($p) => str_contains($p, 'lebih dari satu kepala_keluarga'));
+
+        $this->simpan($isi)->assertStatus(422);
+        $this->assertSame(0, Jamaah::count());
+    }
+
+    public function test_kode_keluarga_tanpa_kepala_keluarga_cuma_diperingatkan(): void
+    {
+        $this->periksa($this->csvKeluarga('Wonokasian,Klanderan,Siti,P,menikah,istri,KK-09'))
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.error', 0)
+            ->assertJsonPath('data.ringkasan.perhatian', 1);
+
+        $this->simpan($this->csvKeluarga('Wonokasian,Klanderan,Siti,P,menikah,istri,KK-09'))->assertCreated();
+
+        $siti = Jamaah::sole();
+        $this->assertSame('KK-09', $siti->kode_keluarga);
+        $this->assertNull($siti->kepala_keluarga_id);
+    }
+
+    public function test_kepala_keluarga_yang_sudah_tersimpan_dipakai_impor_berikutnya(): void
+    {
+        $sugeng = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id, 'nama_lengkap' => 'Sugeng', 'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah', 'status_kk' => 'kepala_keluarga', 'kode_keluarga' => 'KK-01',
+        ]);
+
+        $this->periksa($this->csvKeluarga('Wonokasian,Klanderan,Rian,L,remaja,anak,KK-01'))
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.perhatian', 0);
+
+        $this->simpan($this->csvKeluarga('Wonokasian,Klanderan,Rian,L,remaja,anak,KK-01'))->assertCreated();
+
+        $this->assertSame($sugeng->id, Jamaah::where('nama_lengkap', 'Rian')->sole()->kepala_keluarga_id);
+    }
+
+    public function test_kode_keluarga_kepanjangan_ditolak(): void
+    {
+        $this->periksa($this->csvKeluarga('Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,'.str_repeat('X', 51)))
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.error', 1)
+            ->assertJsonPath('data.baris.0.pesan.0', fn ($p) => str_contains($p, 'terlalu panjang'));
+    }
+
+    public function test_judul_no_kk_dibaca_sebagai_kode_keluarga(): void
+    {
+        $isi = 'desa,kelompok,nama_lengkap,jenis_kelamin,kategori_usia,kk,no_kk
+'
+            .'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KK-77';
+
+        $this->simpan($isi)->assertCreated();
+        $this->assertSame('KK-77', Jamaah::sole()->kode_keluarga);
+    }
+
+    public function test_batal_impor_ikut_menghapus_tautan_keluarganya(): void
+    {
+        $imporId = $this->simpan($this->csvKeluarga(
+            'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KK-01',
+            'Wonokasian,Klanderan,Siti,P,menikah,istri,KK-01',
+        ))->json('data.impor_id');
+
+        $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertOk();
+        $this->assertSame(0, Jamaah::count());
+    }
 }

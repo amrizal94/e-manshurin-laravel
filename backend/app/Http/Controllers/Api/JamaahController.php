@@ -32,7 +32,8 @@ class JamaahController extends Controller
             'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah,janda,duda'],
             'pekerjaan' => ['nullable', 'string', 'max:255'],
             'status_mubaligh' => ['boolean'],
-            'status_kk' => ['nullable', 'in:' . implode(',', self::STATUS_KK)],
+            'status_kk' => ['nullable', 'in:'.implode(',', self::STATUS_KK)],
+            'kode_keluarga' => ['nullable', 'string', 'max:50'],
             'kepala_keluarga_id' => ['nullable', 'exists:jamaahs,id'],
             'aktif' => ['boolean'],
             'keterangan_tidak_aktif' => ['nullable', 'string'],
@@ -105,11 +106,20 @@ class JamaahController extends Controller
         if ($request->filled('status_kk')) {
             $query->where('status_kk', $request->string('status_kk'));
         }
+        // Satu jamaah dikirim, seisi keluarganya yang kembali — itu gunanya filter ini.
+        if ($request->filled('keluarga_id')) {
+            $anggota = Jamaah::visibleTo($request->user())->find($request->integer('keluarga_id'));
+            abort_unless($anggota, 404, 'Jamaah itu tidak ada di wilayah Anda');
+            $query->sekeluargaDengan($anggota);
+        }
         if ($request->filled('search')) {
-            $keyword = '%' . mb_strtolower($request->string('search')) . '%';
+            $keyword = '%'.mb_strtolower($request->string('search')).'%';
+            // Kode keluarga ikut dicari lewat kotak yang sama: mengetik "KK-SUGENG-01"
+            // memunculkan serumah sekaligus, tanpa perlu kotak pencarian kedua.
             $query->where(function ($q) use ($keyword) {
                 $q->whereRaw('LOWER(nama_lengkap) like ?', [$keyword])
-                    ->orWhereRaw('LOWER(nama_panggilan) like ?', [$keyword]);
+                    ->orWhereRaw('LOWER(nama_panggilan) like ?', [$keyword])
+                    ->orWhereRaw('LOWER(kode_keluarga) like ?', [$keyword]);
             });
         }
 

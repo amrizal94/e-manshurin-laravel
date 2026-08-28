@@ -28,6 +28,7 @@ class ImporJamaahController extends Controller
         'pekerjaan' => 'Wiraswasta',
         'kategori_usia' => 'menikah',
         'status_kk' => 'kepala_keluarga',
+        'kode_keluarga' => 'KK-CONTOH-01',
         'status_mubaligh' => 'tidak',
         'aktif' => 'ya',
         'keterangan_tidak_aktif' => '',

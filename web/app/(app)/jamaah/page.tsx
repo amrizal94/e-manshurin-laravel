@@ -24,6 +24,7 @@ interface Jamaah {
   pekerjaan: string | null;
   status_mubaligh: boolean;
   status_kk: string | null;
+  kode_keluarga: string | null;
   kepala_keluarga_id: number | null;
   aktif: boolean;
   keterangan_tidak_aktif: string | null;
@@ -55,7 +56,7 @@ function bacaTerakhir(): { kelompok_id?: number; kategori_usia?: string } {
 const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
-  pekerjaan: "", status_mubaligh: false, status_kk: "",
+  pekerjaan: "", status_mubaligh: false, status_kk: "", kode_keluarga: "",
   kepala_keluarga_id: "" as number | "", aktif: true, keterangan_tidak_aktif: "",
 };
 
@@ -68,6 +69,9 @@ export default function JamaahPage() {
   const [searchDebounced, setSearchDebounced] = useState("");
   const [filterKelompok, setFilterKelompok] = useState("");
   const [filterKategori, setFilterKategori] = useState("");
+  // Disaring lewat satu jamaah, bukan lewat kodenya: keluarga yang datanya dari form
+  // lama belum punya kode, dan server yang memutuskan sisi mana yang dipakai.
+  const [keluarga, setKeluarga] = useState<{ id: number; nama: string } | null>(null);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -91,6 +95,7 @@ export default function JamaahPage() {
     if (searchDebounced) params.set("search", searchDebounced);
     if (filterKelompok) params.set("kelompok_id", filterKelompok);
     if (filterKategori) params.set("kategori_usia", filterKategori);
+    if (keluarga) params.set("keluarga_id", String(keluarga.id));
     Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
@@ -103,7 +108,7 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [searchDebounced, filterKelompok, filterKategori, page]);
+  }, [searchDebounced, filterKelompok, filterKategori, keluarga, page]);
 
   // Daftar kepala keluarga harus lepas dari pagination dan filter tabel: kalau diambil dari
   // `rows`, KK yang kebetulan ada di halaman lain jadi tidak bisa dipilih — dan jamaah yang
@@ -131,6 +136,11 @@ export default function JamaahPage() {
     setPage(1);
   }
 
+  function lihatKeluarga(j: Jamaah) {
+    setKeluarga({ id: j.id, nama: j.nama_lengkap });
+    setPage(1);
+  }
+
   function buka(j?: Jamaah) {
     setEditId(j?.id ?? null);
     setTersimpan("");
@@ -140,7 +150,7 @@ export default function JamaahPage() {
       tanggal_lahir: j.tanggal_lahir?.slice(0, 10) ?? "", alamat: j.alamat ?? "",
       no_hp: j.no_hp ?? "", kelompok_id: j.kelompok_id, kategori_usia: j.kategori_usia,
       pekerjaan: j.pekerjaan ?? "", status_mubaligh: j.status_mubaligh,
-      status_kk: j.status_kk ?? "",
+      status_kk: j.status_kk ?? "", kode_keluarga: j.kode_keluarga ?? "",
       kepala_keluarga_id: j.kepala_keluarga_id ?? "",
       aktif: j.aktif, keterangan_tidak_aktif: j.keterangan_tidak_aktif ?? "",
     } : bawaanBaru());
@@ -168,7 +178,7 @@ export default function JamaahPage() {
     const nama = form.nama_lengkap.trim();
     let kembar: Jamaah[] = [];
     try {
-      const res = await api<{ data: Jamaah[] }>(`/jamaahs?q=${encodeURIComponent(nama)}&per_page=100`);
+      const res = await api<{ data: Jamaah[] }>(`/jamaahs?search=${encodeURIComponent(nama)}&per_page=100`);
       kembar = res.data.data.filter(
         (j) => j.id !== editId && j.nama_lengkap.trim().toLowerCase() === nama.toLowerCase()
       );
@@ -198,6 +208,7 @@ export default function JamaahPage() {
       no_hp: form.no_hp || null,
       pekerjaan: form.pekerjaan || null,
       status_kk: form.status_kk || null,
+      kode_keluarga: form.kode_keluarga || null,
       kepala_keluarga_id: form.kepala_keluarga_id || null,
       keterangan_tidak_aktif: form.keterangan_tidak_aktif || null,
     });
@@ -263,7 +274,7 @@ export default function JamaahPage() {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
-          placeholder="Cari nama lengkap/panggilan..."
+          placeholder="Cari nama atau kode keluarga..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-64"
@@ -291,6 +302,14 @@ export default function JamaahPage() {
           ))}
         </select>
       </div>
+
+      {keluarga && (
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <span>Menampilkan satu keluarga: <strong>{keluarga.nama}</strong></span>
+          <button onClick={() => { setKeluarga(null); setPage(1); }}
+            className="ml-auto font-semibold hover:underline">Tampilkan semua</button>
+        </div>
+      )}
 
       <div className="space-y-2 sm:hidden">
         {loading && (
@@ -323,6 +342,7 @@ export default function JamaahPage() {
             <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
               <span className="text-gray-400">Foto: {j.photos_count ?? 0}</span>
               <div className="flex gap-3">
+                <button onClick={() => lihatKeluarga(j)} className="text-gray-400 hover:text-gray-700">Keluarga</button>
                 <Link href={`/jamaah/${j.id}/wajah`} className="font-semibold text-emerald-600 hover:text-emerald-800">Wajah</Link>
                 <button onClick={() => buka(j)} className="text-gray-400 hover:text-gray-700">Edit</button>
                 <button onClick={() => hapus(j)} className="text-red-400 hover:text-red-700">Hapus</button>
@@ -368,6 +388,7 @@ export default function JamaahPage() {
                   )}
                 </td>
                 <td className="p-3 text-right">
+                  <button onClick={() => lihatKeluarga(j)} className="mr-2 text-xs text-gray-400 hover:text-gray-700">Keluarga</button>
                   <Link href={`/jamaah/${j.id}/wajah`} className="mr-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800">Wajah</Link>
                   <button onClick={() => buka(j)} className="mr-2 text-xs text-gray-400 hover:text-gray-700">Edit</button>
                   <button onClick={() => hapus(j)} className="text-xs text-red-400 hover:text-red-700">Hapus</button>
@@ -478,6 +499,12 @@ export default function JamaahPage() {
                   <option value="orang_tua">Orang Tua</option>
                   <option value="mertua">Mertua</option>
                 </select>
+              </div>
+              <div>
+                <label className={label} htmlFor="f-kode_keluarga">Kode Keluarga</label>
+                <input id="f-kode_keluarga" className={input} value={form.kode_keluarga} placeholder="mis. KK-SUGENG-01"
+                  onChange={(e) => setForm({ ...form, kode_keluarga: e.target.value })} />
+                <p className="mt-1 text-xs text-gray-400">Samakan untuk satu rumah. Dipakai impor untuk menyambungkan keluarga.</p>
               </div>
               <div>
                 <label className={label} htmlFor="f-kepala_keluarga_id">Kepala Keluarga</label>

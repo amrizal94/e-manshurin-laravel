@@ -30,7 +30,7 @@ class ImporJamaah
 
     public const OPSIONAL = [
         'nama_panggilan', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp',
-        'pekerjaan', 'status_kk', 'status_mubaligh', 'aktif', 'keterangan_tidak_aktif',
+        'pekerjaan', 'status_kk', 'kode_keluarga', 'status_mubaligh', 'aktif', 'keterangan_tidak_aktif',
     ];
 
     /**
@@ -69,6 +69,8 @@ class ImporJamaah
         'jk' => 'jenis_kelamin', 'l_p' => 'jenis_kelamin',
         'kategori' => 'kategori_usia', 'usia' => 'kategori_usia',
         'mubaligh' => 'status_mubaligh', 'kk' => 'status_kk',
+        'no_kk' => 'kode_keluarga', 'kode_kk' => 'kode_keluarga', 'keluarga' => 'kode_keluarga',
+        'nomor_kk' => 'kode_keluarga', 'kode' => 'kode_keluarga',
     ];
 
     /**
@@ -79,7 +81,7 @@ class ImporJamaah
         'kelompok_id' => null, 'nama_lengkap' => '', 'nama_panggilan' => null,
         'jenis_kelamin' => 'L', 'tempat_lahir' => null, 'tanggal_lahir' => null,
         'alamat' => null, 'no_hp' => null, 'kategori_usia' => '', 'pekerjaan' => null,
-        'status_mubaligh' => false, 'status_kk' => null, 'kepala_keluarga_id' => null,
+        'status_mubaligh' => false, 'status_kk' => null, 'kode_keluarga' => null, 'kepala_keluarga_id' => null,
         'aktif' => true, 'keterangan_tidak_aktif' => null,
     ];
 
@@ -88,6 +90,9 @@ class ImporJamaah
 
     /** @var array<string, true> kunci "kelompok_id|nama_lengkap" huruf kecil */
     private array $sudahAda;
+
+    /** @var array<string, int> kode_keluarga => id kepala keluarga yang sudah tersimpan */
+    private array $kepalaTersimpan;
 
     private string $pemisah = ',';
 
@@ -99,6 +104,15 @@ class ImporJamaah
 
         $this->sudahAda = Jamaah::visibleTo($actor)->get(['kelompok_id', 'nama_lengkap'])
             ->mapWithKeys(fn (Jamaah $j) => [$j->kelompok_id.'|'.mb_strtolower(trim($j->nama_lengkap)) => true])
+            ->all();
+
+        // Impor susulan — anak yang baru lahir, menantu baru — kepala keluarganya sudah
+        // ada di basis data, tidak ikut di file. Tanpa ini barisnya diperingatkan
+        // "belum punya kepala keluarga" padahal kodenya sudah benar.
+        $this->kepalaTersimpan = Jamaah::visibleTo($actor)
+            ->where('status_kk', 'kepala_keluarga')
+            ->whereNotNull('kode_keluarga')
+            ->pluck('id', 'kode_keluarga')
             ->all();
     }
 
@@ -146,6 +160,8 @@ class ImporJamaah
 
             $baris[] = $this->periksaBaris($nomor, $this->ambilNilai($kolom, $mentah), $dalamFile, $adaTanggalGaris);
         }
+
+        $this->periksaKeluarga($baris);
 
         if ($this->pemisah !== ',') {
             $catatan[] = 'File dibaca dengan pemisah "'.$this->pemisah.'".';
@@ -227,6 +243,8 @@ class ImporJamaah
                     'updated_at' => $sekarang,
                 ], $bagian));
             }
+
+            $this->tautkanKeluarga($imporId);
         });
 
         activity()
@@ -239,6 +257,29 @@ class ImporJamaah
             'disimpan' => count($dipakai),
             'dilewati' => count($hasil['baris']) - count($dipakai),
         ];
+    }
+
+    /**
+     * Menerjemahkan kode_keluarga jadi kepala_keluarga_id. Baru bisa dikerjakan sesudah
+     * baris-barisnya masuk: id-nya belum ada waktu filenya ditulis, dan kode itulah
+     * satu-satunya cara sebuah keluarga bisa disebut dari dalam Excel.
+     */
+    private function tautkanKeluarga(string $imporId): void
+    {
+        $kepalaBaru = Jamaah::where('impor_id', $imporId)
+            ->where('status_kk', 'kepala_keluarga')
+            ->whereNotNull('kode_keluarga')
+            ->pluck('id', 'kode_keluarga')
+            ->all();
+
+        // Kepala dari file menang atas yang sudah tersimpan: kode yang sama dengan kepala
+        // baru di dalam file berarti file itu yang sedang menyatakan susunan keluarganya.
+        foreach ($kepalaBaru + $this->kepalaTersimpan as $kode => $kepalaId) {
+            Jamaah::where('impor_id', $imporId)
+                ->where('kode_keluarga', $kode)
+                ->whereKeyNot($kepalaId)
+                ->update(['kepala_keluarga_id' => $kepalaId]);
+        }
     }
 
     /** Membatalkan satu impor: menghapus persis baris yang masuk lewat impor itu, bukan yang lain. */
@@ -479,6 +520,14 @@ class ImporJamaah
             $data[$kunci] = ($nilai[$kunci] ?? '') === '' ? null : $nilai[$kunci];
         }
 
+        // Disamakan jadi huruf besar di sini, bukan diserahkan ke mutator model:
+        // Jamaah::insert() menulis langsung ke basis data dan melewati mutator.
+        $kode = mb_strtoupper($nilai['kode_keluarga'] ?? '');
+        $data['kode_keluarga'] = $kode === '' ? null : $kode;
+        if (mb_strlen($kode) > 50) {
+            $pesan[] = 'kode_keluarga "'.$kode.'" terlalu panjang (maksimal 50 huruf)';
+        }
+
         // Dua orang memang boleh senama — di data yang ada pun sudah ada beberapa pasang.
         // Jadi ini peringatan, bukan penolakan: yang dicegah satu orang masuk dua kali.
         // Ditandai tersendiri (bukan cuma "perhatian") supaya pilihan "lewati yang sudah
@@ -507,6 +556,50 @@ class ImporJamaah
             'data' => $data,
             'pesan' => [...$pesan, ...$peringatan],
         ];
+    }
+
+    /**
+     * Pemeriksaan antarbaris: satu kode keluarga baru bisa dinilai setelah seluruh file
+     * terbaca, jadi tidak bisa ikut periksaBaris().
+     *
+     * @param  list<array>  $baris
+     */
+    private function periksaKeluarga(array &$baris): void
+    {
+        $kepala = [];
+
+        foreach ($baris as $b) {
+            if ($b['data']['kode_keluarga'] !== null && ($b['data']['status_kk'] ?? null) === 'kepala_keluarga') {
+                $kepala[$b['data']['kode_keluarga']][] = $b['baris'];
+            }
+        }
+
+        foreach ($baris as $i => $b) {
+            $kode = $b['data']['kode_keluarga'];
+
+            if ($kode === null) {
+                continue;
+            }
+
+            // Dua kepala keluarga dalam satu kode itu salah ketik yang mahal: kalau
+            // dibiarkan, salah satunya terpilih diam-diam dan sisa keluarganya
+            // menggantung di orang yang keliru. Ditolak, biar filenya dibetulkan.
+            if (count($kepala[$kode] ?? []) > 1) {
+                $baris[$i]['pesan'][] = 'kode_keluarga "'.$kode.'" punya lebih dari satu kepala_keluarga (baris '.implode(', ', $kepala[$kode]).')';
+                $baris[$i]['status'] = 'error';
+
+                continue;
+            }
+
+            // Tanpa kepala keluarga, barisnya tetap masuk dan tetap ketemu lewat
+            // pencarian kode — cuma kepala_keluarga_id-nya yang tidak terisi.
+            if (! isset($kepala[$kode]) && ! isset($this->kepalaTersimpan[$kode])) {
+                $baris[$i]['pesan'][] = 'kode_keluarga "'.$kode.'" belum ada barisnya yang status_kk-nya kepala_keluarga';
+                if ($baris[$i]['status'] === 'siap') {
+                    $baris[$i]['status'] = 'perhatian';
+                }
+            }
+        }
     }
 
     /**
