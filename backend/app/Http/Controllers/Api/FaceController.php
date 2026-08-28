@@ -24,7 +24,7 @@ class FaceController extends Controller
         try {
             $response = Http::timeout(15)
                 ->attach('image', fopen($file->getRealPath(), 'r'), $file->getClientOriginalName())
-                ->post(config('services.face.url') . '/extract');
+                ->post(config('services.face.url').'/extract');
         } catch (ConnectionException) {
             abort(503, 'Face service tidak tersedia');
         }
@@ -82,6 +82,7 @@ class FaceController extends Controller
     public function identify(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         abort_unless(Kegiatan::visibleTo($request->user())->whereKey($kegiatan->id)->exists(), 403);
+        abort_if($kegiatan->libur, 422, 'Kegiatan ini ditandai libur.');
         $request->validate(['photo' => ['required', 'image', 'max:5120']]);
 
         return $this->cocokkanDanCatat($this->extract($request)['descriptor'], collect([$kegiatan]));

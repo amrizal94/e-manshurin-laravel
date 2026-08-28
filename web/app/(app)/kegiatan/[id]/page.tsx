@@ -17,6 +17,8 @@ interface Kegiatan {
   daerah?: Opsi | null;
   desa?: Opsi | null;
   kelompok?: Opsi | null;
+  libur: boolean;
+  keterangan_libur: string | null;
 }
 interface Peserta {
   id: number;
@@ -123,6 +125,16 @@ export default function KegiatanDetailPage() {
     <div className="space-y-4">
       <Link href="/kegiatan" className="text-sm text-gray-500 hover:text-gray-700">← Kembali ke Kegiatan</Link>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+
+      {/* Absensi ditolak server kalau kegiatannya libur. Dikatakan di depan, bukan
+          dibiarkan muncul sebagai pesan error waktu tombol hadir ditekan. */}
+      {kegiatan?.libur && (
+        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          Kegiatan ini ditandai <strong>libur</strong>
+          {kegiatan.keterangan_libur ? ` — ${kegiatan.keterangan_libur}` : ""}. Absensi baru tidak
+          bisa dicatat. Lepas tanda liburnya di halaman Kegiatan kalau ternyata jadi.
+        </p>
+      )}
 
       {kegiatan && (
         <div className="flex flex-wrap items-start justify-between gap-2">

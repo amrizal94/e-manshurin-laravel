@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BerTargetStruktur;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,10 +16,11 @@ use Spatie\Activitylog\Traits\LogsActivity;
 #[Fillable([
     'nama', 'jenis_pengajian', 'daerah_id', 'desa_id', 'kelompok_id',
     'tanggal', 'jam_mulai', 'jam_selesai', 'created_by',
+    'jadwal_rutin_id', 'libur', 'keterangan_libur',
 ])]
 class Kegiatan extends Model
 {
-    use LogsActivity;
+    use BerTargetStruktur, LogsActivity;
 
     protected $table = 'kegiatans';
 
@@ -54,22 +56,12 @@ class Kegiatan extends Model
 
     protected function casts(): array
     {
-        return ['tanggal' => 'date'];
+        return ['tanggal' => 'date', 'libur' => 'boolean'];
     }
 
-    public function daerah(): BelongsTo
+    public function jadwalRutin(): BelongsTo
     {
-        return $this->belongsTo(Daerah::class);
-    }
-
-    public function desa(): BelongsTo
-    {
-        return $this->belongsTo(Desa::class);
-    }
-
-    public function kelompok(): BelongsTo
-    {
-        return $this->belongsTo(Kelompok::class);
+        return $this->belongsTo(JadwalRutin::class);
     }
 
     public function creator(): BelongsTo
@@ -113,6 +105,7 @@ class Kegiatan extends Model
 
         return self::visibleTo($user)
             ->whereDate('tanggal', $waktu->toDateString())
+            ->where('libur', false)
             ->whereNotNull('jam_mulai')
             ->orderBy('jam_mulai')
             ->get()
@@ -122,6 +115,12 @@ class Kegiatan extends Model
     /** Jam kegiatan kosong dianggap berlaku sepanjang hari. */
     public function jendelaAbsenTerbuka(Carbon $waktu): bool
     {
+        // Satu-satunya tempat kiosk memutuskan kamera menyala atau tidak, jadi di sinilah
+        // libur harus menutupnya — bukan di tiap pemanggil yang bisa terlewat satu.
+        if ($this->libur) {
+            return false;
+        }
+
         if (! $this->jam_mulai || ! $this->jam_selesai) {
             return true;
         }
@@ -130,6 +129,30 @@ class Kegiatan extends Model
 
         return $menit >= self::menitJam($this->jam_mulai) - self::TOLERANSI_MENIT
             && $menit <= self::menitJam($this->jam_selesai) + self::TOLERANSI_MENIT;
+    }
+
+    /**
+     * Kegiatan lain di hari yang sama yang jendelanya bertumpuk DAN pesertanya beririsan.
+     *
+     * Dua kegiatan boleh berbarengan selama pesertanya tidak beririsan — caberawit dan
+     * umum di jam yang sama itu wajar. Yang ditolak: jamaah yang sama bisa masuk keduanya,
+     * karena kiosk lalu harus menebak dia sedang duduk di pengajian yang mana.
+     *
+     * Yang libur tidak menghalangi apa pun — memang tidak ada acaranya.
+     */
+    public function bentrok(?int $kecuali = null): ?self
+    {
+        return self::whereDate('tanggal', $this->tanggal)
+            ->where('libur', false)
+            ->when($kecuali, fn (Builder $q, int $id) => $q->whereKeyNot($id))
+            ->get()
+            ->first(fn (self $lain) => $this->jendelaBertumpuk($lain) && $this->pesertaBeririsan($lain));
+    }
+
+    /** Jam kegiatan sebagai "18:30-20:00" — dipakai pesan bentrok. */
+    public function rentangJam(): string
+    {
+        return substr((string) $this->jam_mulai, 0, 5).'-'.substr((string) $this->jam_selesai, 0, 5);
     }
 
     /**
@@ -190,38 +213,5 @@ class Kegiatan extends Model
         }
 
         return $query->whereHas('kelompok.desa', fn ($q) => $q->where('daerah_id', $this->daerah_id));
-    }
-
-    /** Kegiatan yang menyentuh wilayah user: target di bawah scope user, atau target level atas yang mencakup user. */
-    public function scopeVisibleTo(Builder $query, User $user): Builder
-    {
-        if ($user->kelompok_id) {
-            $kelompok = $user->kelompok()->with('desa')->first();
-
-            return $query->where(fn ($q) => $q
-                ->where('kelompok_id', $kelompok->id)
-                ->orWhere('desa_id', $kelompok->desa_id)
-                ->orWhere('daerah_id', $kelompok->desa->daerah_id));
-        }
-
-        if ($user->desa_id) {
-            $desa = $user->desa;
-
-            return $query->where(fn ($q) => $q
-                ->whereIn('kelompok_id', Kelompok::where('desa_id', $desa->id)->select('id'))
-                ->orWhere('desa_id', $desa->id)
-                ->orWhere('daerah_id', $desa->daerah_id));
-        }
-
-        if ($user->daerah_id) {
-            $desaIds = Desa::where('daerah_id', $user->daerah_id)->select('id');
-
-            return $query->where(fn ($q) => $q
-                ->whereIn('kelompok_id', Kelompok::whereIn('desa_id', $desaIds)->select('id'))
-                ->orWhereIn('desa_id', $desaIds)
-                ->orWhere('daerah_id', $user->daerah_id));
-        }
-
-        return $query;
     }
 }

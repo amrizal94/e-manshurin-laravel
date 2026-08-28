@@ -18,6 +18,17 @@ interface Kegiatan {
   desa?: Opsi | null;
   kelompok?: Opsi | null;
   absensis_count: number;
+  libur: boolean;
+  keterangan_libur: string | null;
+  jadwal_rutin_id: number | null;
+  jadwal_rutin?: { id: number; nama: string } | null;
+}
+
+/** Hari ini menurut jam browser — dipakai sebagai batas bawaan filter "Sampai". */
+function hariIni() {
+  const d = new Date();
+
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
 const PER_PAGE = 25;
@@ -67,6 +78,14 @@ export default function KegiatanPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [page, filterJenis, filterDari, filterSampai]);
+
+  // Jadwal rutin menerbitkan kegiatan 30 hari ke depan. Tanpa batas bawaan, daftar yang
+  // urut tanggal menurun dibuka pada kegiatan bulan depan dan yang hari ini terkubur.
+  // Diisi sesudah mount, bukan sebagai nilai awal: halaman ini diprarender waktu build,
+  // dan "hari ini" versi build tidak sama dengan versi pembacanya.
+  useEffect(() => {
+    Promise.resolve().then(() => setFilterSampai(hariIni()));
+  }, []);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -134,6 +153,27 @@ export default function KegiatanPage() {
     });
   }
 
+  async function ubahLibur(k: Kegiatan) {
+    const alasan = k.libur
+      ? null
+      : prompt(`Tandai "${k.nama}" (${k.tanggal.slice(0, 10)}) libur.
+
+Keterangan (boleh dikosongkan):`, "");
+
+    // prompt() yang dibatalkan mengembalikan null; string kosong berarti lanjut tanpa keterangan.
+    if (!k.libur && alasan === null) return;
+
+    try {
+      await api(`/kegiatans/${k.id}/libur`, {
+        method: "PATCH",
+        body: JSON.stringify({ libur: !k.libur, keterangan_libur: alasan || null }),
+      });
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menandai libur");
+    }
+  }
+
   async function hapus(k: Kegiatan) {
     if (!confirm(`Hapus kegiatan "${k.nama}"?`)) return;
     try {
@@ -197,11 +237,18 @@ export default function KegiatanPage() {
             </p>
             <p className="text-xs text-gray-400">
               {k.kelompok ? `Kelompok ${k.kelompok.nama}` : k.desa ? `Desa ${k.desa.nama}` : k.daerah ? `Daerah ${k.daerah.nama}` : "-"}
+              {k.jadwal_rutin && " · rutin"}
             </p>
+            {k.libur && (
+              <p className="mt-1 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
+                Libur{k.keterangan_libur ? ` — ${k.keterangan_libur}` : ""}
+              </p>
+            )}
             <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-2 text-xs">
               <span className="text-gray-400">Tercatat: {k.absensis_count}</span>
               <div className="flex gap-3">
                 <Link href={`/kegiatan/${k.id}`} className="font-semibold text-emerald-600 hover:text-emerald-800">Absensi</Link>
+                <button onClick={() => ubahLibur(k)} className="text-gray-500 hover:text-gray-800">{k.libur ? "Batal libur" : "Libur"}</button>
                 <button onClick={() => ulangi(k)} className="text-gray-500 hover:text-gray-800">Ulangi</button>
                 <button onClick={() => hapus(k)} className="text-red-400 hover:text-red-700">Hapus</button>
               </div>
@@ -218,6 +265,7 @@ export default function KegiatanPage() {
               <th className="p-3">Nama Pengajian</th>
               <th className="p-3">Jenis</th>
               <th className="p-3">Target</th>
+              <th className="p-3">Status</th>
               <th className="p-3">Tercatat</th>
               <th className="p-3"></th>
             </tr>
@@ -228,24 +276,33 @@ export default function KegiatanPage() {
                 <td className="p-3">{k.tanggal.slice(0, 10)}{k.jam_mulai ? ` ${k.jam_mulai.slice(0, 5)}` : ""}</td>
                 <td className="p-3 font-medium text-gray-900">
                   <Link href={`/kegiatan/${k.id}`} className="hover:text-emerald-700">{k.nama}</Link>
+                  {k.jadwal_rutin && <span className="ml-2 text-xs font-normal text-gray-400">rutin</span>}
                 </td>
                 <td className="p-3">{JENIS_PENGAJIAN[k.jenis_pengajian]}</td>
                 <td className="p-3">
                   {k.kelompok ? `Kelompok ${k.kelompok.nama}` : k.desa ? `Desa ${k.desa.nama}` : k.daerah ? `Daerah ${k.daerah.nama}` : "-"}
                 </td>
+                <td className="p-3">
+                  {k.libur ? (
+                    <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800" title={k.keterangan_libur ?? ""}>Libur</span>
+                  ) : (
+                    <span className="text-xs text-gray-400">-</span>
+                  )}
+                </td>
                 <td className="p-3">{k.absensis_count}</td>
                 <td className="p-3 text-right">
                   <Link href={`/kegiatan/${k.id}`} className="mr-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800">Absensi</Link>
+                  <button onClick={() => ubahLibur(k)} className="mr-2 text-xs text-gray-500 hover:text-gray-800">{k.libur ? "Batal libur" : "Libur"}</button>
                   <button onClick={() => ulangi(k)} className="mr-2 text-xs text-gray-500 hover:text-gray-800">Ulangi</button>
                   <button onClick={() => hapus(k)} className="text-xs text-red-400 hover:text-red-700">Hapus</button>
                 </td>
               </tr>
             ))}
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={6} className="p-6 text-center text-gray-400">Belum ada kegiatan</td></tr>
+              <tr><td colSpan={7} className="p-6 text-center text-gray-400">Belum ada kegiatan</td></tr>
             )}
             {loading && (
-              <tr><td colSpan={6} className="p-6 text-center text-gray-400">Memuat...</td></tr>
+              <tr><td colSpan={7} className="p-6 text-center text-gray-400">Memuat...</td></tr>
             )}
           </tbody>
         </table>

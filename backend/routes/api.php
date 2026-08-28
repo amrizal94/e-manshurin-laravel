@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DesaController;
 use App\Http\Controllers\Api\FaceController;
 use App\Http\Controllers\Api\ImporJamaahController;
+use App\Http\Controllers\Api\JadwalRutinController;
 use App\Http\Controllers\Api\JamaahController;
 use App\Http\Controllers\Api\KegiatanController;
 use App\Http\Controllers\Api\KelompokController;
@@ -41,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/jamaahs/{jamaah}/photos/{photo}', [JamaahController::class, 'destroyPhoto']);
         Route::post('/jamaahs/{jamaah}/face-enroll', [FaceController::class, 'enroll']);
         Route::apiResource('users', UserController::class)->except(['show']);
+        // Jadwal rutin cuma diatur admin; kegiatan yang diterbitkannya dipakai semua role.
+        Route::apiResource('jadwal-rutins', JadwalRutinController::class)->except('show')
+            ->parameters(['jadwal-rutins' => 'jadwalRutin']);
     });
 
     // Kegiatan + absensi + rekap: semua role
@@ -52,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('kegiatans', KegiatanController::class);
         Route::get('/kegiatans/{kegiatan}/peserta', [KegiatanController::class, 'peserta']);
         Route::post('/kegiatans/{kegiatan}/absensi', [KegiatanController::class, 'storeAbsensi']);
+        Route::patch('/kegiatans/{kegiatan}/libur', [KegiatanController::class, 'libur']);
         Route::post('/kegiatans/{kegiatan}/absensi-wajah', [FaceController::class, 'identify']);
         Route::get('/rekap', [RekapController::class, 'index']);
     });
