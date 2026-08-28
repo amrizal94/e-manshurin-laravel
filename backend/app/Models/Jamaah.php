@@ -75,6 +75,36 @@ class Jamaah extends Model
     }
 
     /**
+     * Penanda keluarga: dua jamaah berkunci sama dianggap serumah.
+     *
+     * Kepala keluarganya yang jadi patokan, bukan barisnya sendiri — anggota yang belum
+     * diberi kode tapi sudah menunjuk kepala keluarga harus tetap masuk kelompok yang
+     * sama dengan kepalanya yang sudah berkode.
+     *
+     * Kepalanya diminta dari pemanggil, bukan diambil lewat relasi, supaya menghitung
+     * kunci untuk seribu baris tidak jadi seribu query.
+     */
+    public function kunciKeluarga(?self $kepala = null): string
+    {
+        $inti = $kepala ?? $this;
+
+        return $inti->kode_keluarga !== null ? 'kode:'.$inti->kode_keluarga : 'id:'.$inti->id;
+    }
+
+    /**
+     * Jamaah yang belum tersambung ke keluarga mana pun — daftar kerja pendataan KK.
+     *
+     * Kepala keluarga tidak ikut: dia memang rujukan keluarganya sendiri, bukan orang
+     * yang tertinggal.
+     */
+    public function scopeBelumMasukKeluarga(Builder $query): Builder
+    {
+        return $query->whereNull('kode_keluarga')
+            ->whereNull('kepala_keluarga_id')
+            ->where(fn (Builder $q) => $q->whereNull('status_kk')->orWhere('status_kk', '!=', 'kepala_keluarga'));
+    }
+
+    /**
      * Seisi keluarga satu jamaah — termasuk dirinya sendiri.
      *
      * Keluarga bisa dikenali dari dua sisi: kode keluarga (jalur impor) atau rujukan

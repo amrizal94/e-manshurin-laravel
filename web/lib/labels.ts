@@ -19,6 +19,17 @@ export const JENIS_PENGAJIAN: Record<string, string> = {
   bapak: "Bapak-bapak",
 };
 
+export const STATUS_KK: Record<string, string> = {
+  kepala_keluarga: "Kepala Keluarga",
+  suami: "Suami",
+  istri: "Istri",
+  anak: "Anak",
+  menantu: "Menantu",
+  cucu: "Cucu",
+  orang_tua: "Orang Tua",
+  mertua: "Mertua",
+};
+
 export const STATUS_ABSENSI: Record<string, string> = {
   hadir: "Hadir",
   izin: "Izin",

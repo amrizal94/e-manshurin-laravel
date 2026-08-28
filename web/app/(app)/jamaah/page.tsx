@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { KATEGORI_USIA } from "@/lib/labels";
+import { KATEGORI_USIA, STATUS_KK } from "@/lib/labels";
 import { Pagination } from "@/components/Pagination";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
@@ -31,7 +31,31 @@ interface Jamaah {
   photos_count?: number;
 }
 
+interface Keluarga {
+  kunci: string;
+  kode_keluarga: string | null;
+  kepala_keluarga_id: number | null;
+  kelompok_id: number;
+  anggota: Jamaah[];
+  masalah: string[];
+}
+
+type Mode = "orang" | "keluarga";
+
 const PER_PAGE = 25;
+
+/**
+ * Mode daftar yang terakhir dipakai. Melengkapi data KK itu pekerjaan berjam-jam;
+ * kembali ke mode per orang tiap kali halaman dibuka bikin pekerjaan itu dimulai
+ * ulang terus. Di browser, bukan di database — ini preferensi alat kerja.
+ */
+const MODE = "jamaah-mode-daftar";
+
+function bacaMode(): Mode {
+  if (typeof window === "undefined") return "orang";
+
+  return localStorage.getItem(MODE) === "keluarga" ? "keluarga" : "orang";
+}
 
 /**
  * Kelompok dan kategori yang terakhir dipakai menambah jamaah. Petugas biasanya
@@ -63,6 +87,10 @@ const KOSONG = {
 export default function JamaahPage() {
   useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Jamaah[]>([]);
+  const [keluargas, setKeluargas] = useState<Keluarga[]>([]);
+  const [mode, setMode] = useState<Mode>("orang");
+  const [tanpaKeluarga, setTanpaKeluarga] = useState(false);
+  const [belumMasuk, setBelumMasuk] = useState(0);
   const [kepalaKeluargas, setKepalaKeluargas] = useState<Jamaah[]>([]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
@@ -94,9 +122,26 @@ export default function JamaahPage() {
     const params = new URLSearchParams({ page: String(page) });
     if (searchDebounced) params.set("search", searchDebounced);
     if (filterKelompok) params.set("kelompok_id", filterKelompok);
+    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
+
+    if (mode === "keluarga") {
+      if (tanpaKeluarga) params.set("tanpa_keluarga", "1");
+      api<{ data: Keluarga[]; last_page: number; total: number; belum_masuk_keluarga: number }>(`/jamaahs/keluarga?${params}`)
+        .then((res) => {
+          setKeluargas(res.data.data);
+          setLastPage(res.data.last_page);
+          setTotal(res.data.total);
+          setBelumMasuk(res.data.belum_masuk_keluarga);
+          if (page > res.data.last_page) setPage(res.data.last_page);
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+
+      return;
+    }
+
     if (filterKategori) params.set("kategori_usia", filterKategori);
     if (keluarga) params.set("keluarga_id", String(keluarga.id));
-    Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
         setRows(res.data.data);
@@ -108,7 +153,7 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [searchDebounced, filterKelompok, filterKategori, keluarga, page]);
+  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, keluarga, page]);
 
   // Daftar kepala keluarga harus lepas dari pagination dan filter tabel: kalau diambil dari
   // `rows`, KK yang kebetulan ada di halaman lain jadi tidak bisa dipilih — dan jamaah yang
@@ -118,6 +163,10 @@ export default function JamaahPage() {
     api<{ data: Jamaah[] }>("/jamaahs?status_kk=kepala_keluarga&per_page=1000")
       .then((res) => setKepalaKeluargas(res.data.data))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => setMode(bacaMode()));
   }, []);
 
   useEffect(reload, [reload]);
@@ -134,6 +183,30 @@ export default function JamaahPage() {
   function ubahFilterKategori(v: string) {
     setFilterKategori(v);
     setPage(1);
+  }
+
+  function ubahMode(v: Mode) {
+    setMode(v);
+    setPage(1);
+    setKeluarga(null); // penyaring satu keluarga tidak ada artinya di tampilan per keluarga
+    localStorage.setItem(MODE, v);
+  }
+
+  /**
+   * Membuka form tambah dengan kode keluarga, kepala keluarga, dan kelompoknya sudah
+   * terisi — itu inti pekerjaannya, bukan mengetik ulang tiga isian yang sudah jelas.
+   * Status KK ditebak "anak" karena itu yang paling sering ditambahkan; tetap bisa diganti.
+   */
+  function tambahAnggota(k: Keluarga) {
+    setEditId(null);
+    setTersimpan("");
+    setForm({
+      ...bawaanBaru(),
+      kelompok_id: k.kelompok_id,
+      kode_keluarga: k.kode_keluarga ?? "",
+      kepala_keluarga_id: k.kepala_keluarga_id ?? "",
+      status_kk: "anak",
+    });
   }
 
   function lihatKeluarga(j: Jamaah) {
@@ -272,6 +345,15 @@ export default function JamaahPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
+      <div className="inline-flex rounded-lg border border-gray-300 p-0.5">
+        {([["orang", "Per Orang"], ["keluarga", "Per Keluarga"]] as [Mode, string][]).map(([v, l]) => (
+          <button key={v} onClick={() => ubahMode(v)} aria-pressed={mode === v}
+            className={`rounded-md px-3 py-1.5 text-sm ${mode === v
+              ? "bg-emerald-600 font-semibold text-white"
+              : "text-gray-600 hover:bg-gray-50"}`}>{l}</button>
+        ))}
+      </div>
+
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input
           placeholder="Cari nama atau kode keluarga..."
@@ -290,17 +372,29 @@ export default function JamaahPage() {
             <option key={k.id} value={k.id}>{k.nama}{k.desa ? ` — ${k.desa.nama}` : ""}</option>
           ))}
         </select>
-        <select
-          aria-label="Filter kategori usia"
-          value={filterKategori}
-          onChange={(e) => ubahFilterKategori(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
-        >
-          <option value="">Semua Kategori</option>
-          {Object.entries(KATEGORI_USIA).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
+        {mode === "orang" && (
+          <select
+            aria-label="Filter kategori usia"
+            value={filterKategori}
+            onChange={(e) => ubahFilterKategori(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
+          >
+            <option value="">Semua Kategori</option>
+            {Object.entries(KATEGORI_USIA).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        )}
+        {mode === "keluarga" && (
+          <button
+            onClick={() => { setTanpaKeluarga(!tanpaKeluarga); setPage(1); }}
+            aria-pressed={tanpaKeluarga}
+            className={`rounded-lg border px-3 py-2 text-sm ${tanpaKeluarga
+              ? "border-amber-500 bg-amber-50 font-semibold text-amber-900"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
+            Belum masuk keluarga ({belumMasuk})
+          </button>
+        )}
       </div>
 
       {keluarga && (
@@ -311,6 +405,66 @@ export default function JamaahPage() {
         </div>
       )}
 
+      {mode === "keluarga" && (
+        <div className="space-y-3">
+          {loading && (
+            <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
+          )}
+          {!loading && keluargas.length === 0 && (
+            <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">
+              {tanpaKeluarga ? "Semua jamaah sudah masuk keluarga" : "Belum ada data"}
+            </p>
+          )}
+          {keluargas.map((k) => (
+            <div key={k.kunci} className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900">
+                    {k.kode_keluarga ?? k.anggota[0]?.nama_lengkap}
+                    {!k.kode_keluarga && <span className="ml-2 text-xs font-normal text-gray-400">tanpa kode keluarga</span>}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {k.anggota.length} anggota · {k.anggota[0]?.kelompok?.nama}
+                    {k.anggota[0]?.kelompok?.desa && ` — ${k.anggota[0].kelompok.desa.nama}`}
+                  </p>
+                </div>
+                <button onClick={() => tambahAnggota(k)}
+                  className="shrink-0 rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
+                  + Tambah anggota
+                </button>
+              </div>
+
+              {k.masalah.map((m) => (
+                <p key={m} className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">{m}</p>
+              ))}
+
+              <ul className="mt-3 divide-y divide-gray-100 border-t border-gray-100">
+                {k.anggota.map((j) => (
+                  <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                    <span className="font-medium text-gray-900">{j.nama_lengkap}</span>
+                    <span className={`rounded px-2 py-0.5 text-xs ${j.status_kk
+                      ? "bg-gray-100 text-gray-600"
+                      : "bg-amber-50 text-amber-800"}`}>
+                      {j.status_kk ? STATUS_KK[j.status_kk] : "status KK belum diisi"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {j.jenis_kelamin} · {j.usia ?? "-"} th · {KATEGORI_USIA[j.kategori_usia]}
+                    </span>
+                    <span className="ml-auto flex gap-3 text-xs">
+                      <Link href={`/jamaah/${j.id}/wajah`} className="font-semibold text-emerald-600 hover:text-emerald-800">Wajah</Link>
+                      <button onClick={() => buka(j)} className="text-gray-400 hover:text-gray-700">Edit</button>
+                      <button onClick={() => hapus(j)} className="text-red-400 hover:text-red-700">Hapus</button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mode === "orang" && (
+      <>
       <div className="space-y-2 sm:hidden">
         {loading && (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
@@ -404,11 +558,14 @@ export default function JamaahPage() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       {total > 0 && (
         <div className="flex items-center justify-between text-sm text-gray-500">
           <span>
-            Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total} jamaah
+            Menampilkan {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} dari {total}{" "}
+            {mode === "keluarga" ? "keluarga" : "jamaah"}
           </span>
           <Pagination page={page} lastPage={lastPage} onChange={setPage} />
         </div>
@@ -490,14 +647,9 @@ export default function JamaahPage() {
                     kepala_keluarga_id: e.target.value === "kepala_keluarga" ? "" : form.kepala_keluarga_id,
                   })}>
                   <option value="">-</option>
-                  <option value="kepala_keluarga">Kepala Keluarga</option>
-                  <option value="suami">Suami</option>
-                  <option value="istri">Istri</option>
-                  <option value="anak">Anak</option>
-                  <option value="menantu">Menantu</option>
-                  <option value="cucu">Cucu</option>
-                  <option value="orang_tua">Orang Tua</option>
-                  <option value="mertua">Mertua</option>
+                  {Object.entries(STATUS_KK).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
                 </select>
               </div>
               <div>

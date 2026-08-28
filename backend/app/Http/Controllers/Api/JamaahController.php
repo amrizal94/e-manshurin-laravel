@@ -8,6 +8,7 @@ use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
 use App\Models\JamaahPhoto;
 use App\Models\User;
+use App\Support\DaftarKeluarga;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -128,6 +129,23 @@ class JamaahController extends Controller
             'message' => 'OK',
             'data' => $query->paginate($request->integer('per_page', 25)),
         ]);
+    }
+
+    /**
+     * Daftar yang sama, dikelompokkan per keluarga: mengetik satu nama memunculkan
+     * seisi rumahnya, berikut apa yang belum lengkap di situ.
+     */
+    public function keluarga(Request $request): JsonResponse
+    {
+        $hasil = (new DaftarKeluarga($request->user()))->ambil(
+            $request->filled('search') ? (string) $request->string('search') : null,
+            $request->filled('kelompok_id') ? $request->integer('kelompok_id') : null,
+            $request->boolean('tanpa_keluarga'),
+            max(1, $request->integer('page', 1)),
+            min(100, max(1, $request->integer('per_page', 25))),
+        );
+
+        return response()->json(['success' => true, 'message' => 'OK', 'data' => $hasil]);
     }
 
     public function store(Request $request): JsonResponse
