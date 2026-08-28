@@ -554,4 +554,71 @@ class ImporJamaahTest extends TestCase
         $this->actingAs($this->admin)->deleteJson("/api/jamaahs/impor/{$imporId}")->assertOk();
         $this->assertSame(0, Jamaah::count());
     }
+
+    public function test_ringkasan_keluarga_dihitung_sebelum_impor(): void
+    {
+        $res = $this->periksa($this->csvKeluarga(
+            'Wonokasian,Klanderan,Sugeng,L,menikah,kepala_keluarga,KLANDERAN-001',
+            'Wonokasian,Klanderan,Siti,P,menikah,istri,KLANDERAN-001',
+            'Wonokasian,Klanderan,Rian,L,remaja,anak,KLANDERAN-001',
+            'Wonokasian,Klanderan,Bambang,L,menikah,kepala_keluarga,KLANDERAN-002',
+            'Wonokasian,Klanderan,Yatim,L,remaja,anak,KLANDERAN-003',
+            'Wonokasian,Klanderan,Lepas,L,usman,,',
+        ))->assertOk();
+
+        $res->assertJsonPath('data.keluarga.total', 3)
+            ->assertJsonPath('data.keluarga.tanpa_kode', 1)
+            ->assertJsonPath('data.keluarga.tanpa_kepala', 1)
+            ->assertJsonPath('data.keluarga.terbesar', 3);
+
+        $this->assertEqualsWithDelta(1.7, $res->json('data.keluarga.rata_rata'), 0.05);
+    }
+
+    public function test_ringkasan_keluarga_kosong_kalau_kolomnya_tidak_diisi(): void
+    {
+        $this->periksa($this->csv('Wonokasian,Klanderan,Januar Agung,L,usman,,'))
+            ->assertOk()
+            ->assertJsonPath('data.keluarga.total', 0)
+            ->assertJsonPath('data.keluarga.tanpa_kode', 1)
+            ->assertJsonPath('data.keluarga.tanpa_kepala', 0);
+    }
+
+    public function test_kode_yang_sudah_dipakai_keluarga_lain_ditolak(): void
+    {
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id, 'nama_lengkap' => 'Sugeng Lama', 'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah', 'status_kk' => 'kepala_keluarga', 'kode_keluarga' => 'KLANDERAN-001',
+        ]);
+
+        $isi = $this->csvKeluarga('Wonokasian,Klanderan,Bambang,L,menikah,kepala_keluarga,KLANDERAN-001');
+
+        $this->periksa($isi)
+            ->assertOk()
+            ->assertJsonPath('data.ringkasan.error', 1)
+            ->assertJsonPath('data.baris.0.pesan.0', fn ($p) => str_contains($p, 'sudah dipakai keluarga lain'));
+
+        $this->simpan($isi)->assertStatus(422);
+        $this->assertSame(1, Jamaah::count());
+    }
+
+    public function test_menambah_anggota_ke_keluarga_yang_sudah_ada_tetap_boleh(): void
+    {
+        $sugeng = Jamaah::create([
+            'kelompok_id' => $this->kelompok->id, 'nama_lengkap' => 'Sugeng', 'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah', 'status_kk' => 'kepala_keluarga', 'kode_keluarga' => 'KLANDERAN-001',
+        ]);
+
+        // Tanpa baris kepala keluarga — inilah yang membedakannya dari tabrakan kode.
+        $this->simpan($this->csvKeluarga('Wonokasian,Klanderan,Rian,L,remaja,anak,KLANDERAN-001'))
+            ->assertCreated();
+
+        $this->assertSame($sugeng->id, Jamaah::where('nama_lengkap', 'Rian')->sole()->kepala_keluarga_id);
+    }
+
+    public function test_contoh_templat_memakai_awalan_nama_kelompok(): void
+    {
+        $isi = $this->actingAs($this->admin)->get('/api/jamaahs/impor/template')->assertOk()->getContent();
+
+        $this->assertStringContainsString('KLANDERAN-001', $isi);
+    }
 }

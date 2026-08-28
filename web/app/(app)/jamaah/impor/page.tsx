@@ -19,6 +19,13 @@ interface Baris {
 
 interface Hasil {
   ringkasan: { total: number; siap: number; perhatian: number; error: number; kembar: number };
+  keluarga: {
+    total: number;
+    tanpa_kode: number;
+    tanpa_kepala: number;
+    terbesar: number;
+    rata_rata: number;
+  } | null;
   catatan: string[];
   baris: Baris[];
   dipotong: number;
@@ -187,11 +194,15 @@ export default function ImporJamaahPage() {
           <div>
             <dt className="text-xs font-medium text-gray-500">Isi kode_keluarga</dt>
             <dd className="text-xs text-gray-800">
-              Kode bebas yang <strong>disamakan untuk satu rumah</strong> — mis.{" "}
-              <span className="font-mono">KK-SUGENG-01</span>. Satu barisnya diisi{" "}
+              Kode bebas yang <strong>disamakan untuk satu rumah</strong>. Satu barisnya diisi{" "}
               <span className="font-mono">status_kk = kepala_keluarga</span>; sisanya otomatis
-              tersambung ke dia. Jangan pakai nomor KK 16 digit — yang dibutuhkan cuma
-              pengelompokan, bukan nomor identitasnya.
+              tersambung ke dia. Boleh dikosongkan — keluarganya tinggal disusun lewat mode
+              Per Keluarga sesudah impor.
+              <br />
+              <strong>Pakai awalan nama kelompok</strong>, jangan angka polos:{" "}
+              <span className="font-mono">KLANDERAN-001</span>, <span className="font-mono">KLANDERAN-002</span>.
+              File dipecah per desa dan tiap file mulai menomori dari 1 lagi — angka polos bikin dua
+              keluarga yang tidak berhubungan memakai kode yang sama.
             </dd>
           </div>
           <div>
@@ -259,6 +270,31 @@ export default function ImporJamaahPage() {
               </div>
             ))}
           </div>
+
+          {/* Angka yang dilihat sekali pandang sebelum menekan Impor. Kolom yang tergeser
+              satu langsung ketahuan di sini — "6.900 keluarga" atau "1 keluarga isi 7000". */}
+          {hasil.keluarga && hasil.keluarga.total > 0 && (
+            <div className="mt-3 rounded-lg border border-gray-200 p-3">
+              <p className="text-sm font-semibold text-gray-800">
+                {hasil.keluarga.total} keluarga akan terbentuk
+              </p>
+              <ul className="mt-1 space-y-0.5 text-sm text-gray-600">
+                <li>Terbesar {hasil.keluarga.terbesar} orang · rata-rata {hasil.keluarga.rata_rata}</li>
+                {hasil.keluarga.tanpa_kode > 0 && (
+                  <li>{hasil.keluarga.tanpa_kode} baris tanpa kode keluarga</li>
+                )}
+                {hasil.keluarga.tanpa_kepala > 0 && (
+                  <li className="text-amber-800">
+                    {hasil.keluarga.tanpa_kepala} keluarga belum ada kepala keluarganya — anggotanya tetap masuk,
+                    tinggal disambungkan lewat mode Per Keluarga
+                  </li>
+                )}
+              </ul>
+              <p className="mt-2 text-xs text-gray-400">
+                Angkanya jauh dari dugaan? Kolomnya kemungkinan tergeser. Periksa filenya sebelum mengimpor.
+              </p>
+            </div>
+          )}
 
           {hasil.catatan.map((c) => (
             <p key={c} className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-800">{c}</p>

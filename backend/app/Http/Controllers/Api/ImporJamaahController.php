@@ -28,7 +28,6 @@ class ImporJamaahController extends Controller
         'pekerjaan' => 'Wiraswasta',
         'kategori_usia' => 'menikah',
         'status_kk' => 'kepala_keluarga',
-        'kode_keluarga' => 'KK-CONTOH-01',
         'status_mubaligh' => 'tidak',
         'aktif' => 'ya',
         'keterangan_tidak_aktif' => '',
@@ -45,6 +44,10 @@ class ImporJamaahController extends Controller
             ...self::CONTOH,
             'desa' => $kelompok?->desa?->nama ?? 'Nama Desa',
             'kelompok' => $kelompok?->nama ?? 'Nama Kelompok',
+            // Berawalan nama kelompok, bukan angka polos: file dipecah per desa dan tiap
+            // file mulai menomori dari 1 lagi, jadi angka polos bikin dua keluarga yang
+            // tidak berhubungan memakai kode yang sama.
+            'kode_keluarga' => mb_strtoupper($kelompok?->nama ?? 'KELOMPOK').'-001',
         ];
 
         return [$kolom, array_map(fn ($k) => $contoh[$k] ?? '', $kolom)];

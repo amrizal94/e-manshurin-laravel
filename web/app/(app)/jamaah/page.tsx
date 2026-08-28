@@ -26,6 +26,7 @@ interface Jamaah {
   status_kk: string | null;
   kode_keluarga: string | null;
   kepala_keluarga_id: number | null;
+  kepala_keluarga?: { id: number; nama_lengkap: string } | null;
   aktif: boolean;
   keterangan_tidak_aktif: string | null;
   photos_count?: number;
@@ -91,7 +92,14 @@ export default function JamaahPage() {
   const [mode, setMode] = useState<Mode>("orang");
   const [tanpaKeluarga, setTanpaKeluarga] = useState(false);
   const [belumMasuk, setBelumMasuk] = useState(0);
+  const [pilihan, setPilihan] = useState<number[]>([]);
+  const [kepalaTujuan, setKepalaTujuan] = useState("");
+  const [statusBorongan, setStatusBorongan] = useState("");
   const [kepalaKeluargas, setKepalaKeluargas] = useState<Jamaah[]>([]);
+  // Kepala keluarga yang sedang terpasang, disimpan terpisah supaya rujukan ke kelompok
+  // lain tidak hilang dari pilihan waktu daftarnya disaring per kelompok.
+  const [kepalaAsal, setKepalaAsal] = useState<{ id: number; nama_lengkap: string } | null>(null);
+  const [versiKepala, setVersiKepala] = useState(0);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [search, setSearch] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -155,22 +163,34 @@ export default function JamaahPage() {
       .finally(() => setLoading(false));
   }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, keluarga, page]);
 
-  // Daftar kepala keluarga harus lepas dari pagination dan filter tabel: kalau diambil dari
-  // `rows`, KK yang kebetulan ada di halaman lain jadi tidak bisa dipilih — dan jamaah yang
-  // sudah tersambung terlihat seolah kehilangan kepala keluarganya.
-  // ponytail: sekali ambil semua, bukan select yang bisa dicari. Ganti kalau KK > 1000.
-  const muatKepalaKeluarga = useCallback(() => {
-    api<{ data: Jamaah[] }>("/jamaahs?status_kk=kepala_keluarga&per_page=1000")
+  /**
+   * Kepala keluarga diambil per kelompok yang sedang dipilih di form, bukan sekaligus.
+   * Dengan 7000 jamaah, kepala keluarganya sekitar 1750 — satu daftar utuh berarti yang
+   * ke-1001 hilang tanpa pesan, dan menggulir 1750 pilihan bukan cara kerja.
+   *
+   * Lepas dari pagination dan filter tabel: kalau diambil dari `rows`, KK yang kebetulan
+   * ada di halaman lain jadi tidak bisa dipilih.
+   */
+  // Kelompok yang menentukan daftar kepala keluarga: yang di form kalau form terbuka,
+  // kalau tidak yang sedang disaring di daftar — dipakai penyambungan borongan.
+  const kelompokForm = form?.kelompok_id || Number(filterKelompok) || 0;
+
+  useEffect(() => {
+    if (!kelompokForm) {
+      Promise.resolve().then(() => setKepalaKeluargas([]));
+
+      return;
+    }
+    api<{ data: Jamaah[] }>(`/jamaahs?status_kk=kepala_keluarga&kelompok_id=${kelompokForm}&per_page=200`)
       .then((res) => setKepalaKeluargas(res.data.data))
       .catch(() => {});
-  }, []);
+  }, [kelompokForm, versiKepala]);
 
   useEffect(() => {
     Promise.resolve().then(() => setMode(bacaMode()));
   }, []);
 
   useEffect(reload, [reload]);
-  useEffect(muatKepalaKeluarga, [muatKepalaKeluarga]);
   useEffect(() => {
     api<Kelompok[]>("/kelompoks").then((res) => setKelompoks(res.data)).catch(() => {});
   }, []);
@@ -178,6 +198,38 @@ export default function JamaahPage() {
   function ubahFilterKelompok(v: string) {
     setFilterKelompok(v);
     setPage(1);
+    setPilihan([]);
+  }
+
+  function pilih(id: number) {
+    setPilihan(pilihan.includes(id) ? pilihan.filter((x) => x !== id) : [...pilihan, id]);
+  }
+
+  /**
+   * Menyambungkan yang dicentang ke satu kepala keluarga dalam satu tindakan. Sesudah
+   * impor massal ada ribuan orang yang perlu disambungkan; satu per satu lewat form
+   * berarti empat kali buka-tutup untuk satu rumah.
+   */
+  async function sambungkan() {
+    if (pilihan.length === 0 || !kepalaTujuan) return;
+    setError("");
+    try {
+      const res = await api<unknown>("/jamaahs/sambung-keluarga", {
+        method: "POST",
+        body: JSON.stringify({
+          jamaah_ids: pilihan,
+          kepala_keluarga_id: Number(kepalaTujuan),
+          status_kk: statusBorongan || null,
+        }),
+      });
+      setTersimpan(res.message);
+      setPilihan([]);
+      setKepalaTujuan("");
+      setStatusBorongan("");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyambungkan");
+    }
   }
 
   function ubahFilterKategori(v: string) {
@@ -188,6 +240,7 @@ export default function JamaahPage() {
   function ubahMode(v: Mode) {
     setMode(v);
     setPage(1);
+    setPilihan([]);
     setKeluarga(null); // penyaring satu keluarga tidak ada artinya di tampilan per keluarga
     localStorage.setItem(MODE, v);
   }
@@ -200,6 +253,7 @@ export default function JamaahPage() {
   function tambahAnggota(k: Keluarga) {
     setEditId(null);
     setTersimpan("");
+    setKepalaAsal(null);
     setForm({
       ...bawaanBaru(),
       kelompok_id: k.kelompok_id,
@@ -217,6 +271,7 @@ export default function JamaahPage() {
   function buka(j?: Jamaah) {
     setEditId(j?.id ?? null);
     setTersimpan("");
+    setKepalaAsal(j?.kepala_keluarga ?? null);
     setForm(j ? {
       nama_lengkap: j.nama_lengkap, nama_panggilan: j.nama_panggilan ?? "",
       jenis_kelamin: j.jenis_kelamin, tempat_lahir: j.tempat_lahir ?? "",
@@ -307,7 +362,7 @@ export default function JamaahPage() {
         setForm(null);
       }
       reload();
-      muatKepalaKeluarga(); // KK baru harus langsung bisa dipilih tanpa refresh halaman
+      setVersiKepala((v) => v + 1); // KK baru harus langsung bisa dipilih tanpa refresh halaman
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan");
     }
@@ -318,7 +373,7 @@ export default function JamaahPage() {
     try {
       await api(`/jamaahs/${j.id}`, { method: "DELETE" });
       reload();
-      muatKepalaKeluarga();
+      setVersiKepala((v) => v + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menghapus");
     }
@@ -405,6 +460,54 @@ export default function JamaahPage() {
         </div>
       )}
 
+      {mode === "keluarga" && tanpaKeluarga && (
+        filterKelompok ? (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-sm font-medium text-emerald-900">
+              {pilihan.length === 0
+                ? "Centang beberapa orang, lalu sambungkan sekaligus ke satu kepala keluarga."
+                : `${pilihan.length} orang dipilih`}
+            </p>
+            {pilihan.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <select aria-label="Kepala keluarga tujuan" value={kepalaTujuan}
+                  onChange={(e) => setKepalaTujuan(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-64">
+                  <option value="">Pilih kepala keluarga...</option>
+                  {kepalaKeluargas.map((r) => (
+                    <option key={r.id} value={r.id}>{r.nama_lengkap}</option>
+                  ))}
+                </select>
+                <select aria-label="Status KK borongan" value={statusBorongan}
+                  onChange={(e) => setStatusBorongan(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm sm:w-48">
+                  <option value="">Status KK: biarkan</option>
+                  {Object.entries(STATUS_KK).filter(([v]) => v !== "kepala_keluarga").map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <button onClick={sambungkan} disabled={!kepalaTujuan}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:bg-gray-300">
+                  Sambungkan
+                </button>
+                <button onClick={() => setPilihan([])}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-white">Batal</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          // Dibatasi satu kelompok: kepala keluarga tujuannya diambil per kelompok, dan
+          // menyambungkan orang dari beberapa kelompok sekaligus hampir selalu salah pilih.
+          <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
+            Pilih satu kelompok dulu untuk menyambungkan beberapa orang sekaligus.
+          </p>
+        )
+      )}
+
+      {tersimpan && mode === "keluarga" && (
+        <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-800">{tersimpan}</p>
+      )}
+
       {mode === "keluarga" && (
         <div className="space-y-3">
           {loading && (
@@ -418,7 +521,14 @@ export default function JamaahPage() {
           {keluargas.map((k) => (
             <div key={k.kunci} className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-2">
+                  {tanpaKeluarga && filterKelompok && k.anggota.length === 1 && (
+                    <input type="checkbox" className="mt-1"
+                      aria-label={`Pilih ${k.anggota[0].nama_lengkap}`}
+                      checked={pilihan.includes(k.anggota[0].id)}
+                      onChange={() => pilih(k.anggota[0].id)} />
+                  )}
+                  <div className="min-w-0">
                   <p className="font-medium text-gray-900">
                     {k.kode_keluarga ?? k.anggota[0]?.nama_lengkap}
                     {!k.kode_keluarga && <span className="ml-2 text-xs font-normal text-gray-400">tanpa kode keluarga</span>}
@@ -427,6 +537,7 @@ export default function JamaahPage() {
                     {k.anggota.length} anggota · {k.anggota[0]?.kelompok?.nama}
                     {k.anggota[0]?.kelompok?.desa && ` — ${k.anggota[0].kelompok.desa.nama}`}
                   </p>
+                  </div>
                 </div>
                 <button onClick={() => tambahAnggota(k)}
                   className="shrink-0 rounded-lg border border-emerald-600 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50">
@@ -664,14 +775,22 @@ export default function JamaahPage() {
                   disabled={form.status_kk === "kepala_keluarga"}
                   onChange={(e) => setForm({ ...form, kepala_keluarga_id: e.target.value ? Number(e.target.value) : "" })}>
                   <option value="">- (bukan anggota keluarga siapa pun)</option>
+                  {/* Daftarnya disaring per kelompok, jadi kepala keluarga di kelompok lain
+                      harus tetap dipertahankan — kalau tidak, mengedit jamaah seperti itu
+                      diam-diam melepas rujukannya. */}
+                  {kepalaAsal && !kepalaKeluargas.some((r) => r.id === kepalaAsal.id) && (
+                    <option value={kepalaAsal.id}>{kepalaAsal.nama_lengkap} — kelompok lain</option>
+                  )}
                   {kepalaKeluargas.filter((r) => r.id !== editId).map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.nama_lengkap}{r.kelompok?.nama ? ` — ${r.kelompok.nama}` : ""}
                     </option>
                   ))}
                 </select>
-                {form.status_kk === "kepala_keluarga" && (
+                {form.status_kk === "kepala_keluarga" ? (
                   <p className="mt-1 text-xs text-gray-400">Kepala keluarga tidak bisa jadi anggota keluarga lain</p>
+                ) : (
+                  <p className="mt-1 text-xs text-gray-400">Yang tampil kepala keluarga di kelompok yang dipilih di atas</p>
                 )}
               </div>
               <div className="sm:col-span-2 flex flex-wrap gap-6">

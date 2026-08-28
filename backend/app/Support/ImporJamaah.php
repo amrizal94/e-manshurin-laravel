@@ -121,7 +121,7 @@ class ImporJamaah
      * maupun penyimpanan — yang dilaporkan ke layar dan yang masuk ke basis data harus
      * hasil pembacaan yang persis sama, bukan dua jalur yang bisa berbeda diam-diam.
      *
-     * @return array{gagal: ?string, catatan: list<string>, baris: list<array>}
+     * @return array{gagal: ?string, catatan: list<string>, baris: list<array>, keluarga?: array}
      */
     private function urai(string $path, string $ekstensi): array
     {
@@ -161,7 +161,7 @@ class ImporJamaah
             $baris[] = $this->periksaBaris($nomor, $this->ambilNilai($kolom, $mentah), $dalamFile, $adaTanggalGaris);
         }
 
-        $this->periksaKeluarga($baris);
+        $keluarga = $this->periksaKeluarga($baris);
 
         if ($this->pemisah !== ',') {
             $catatan[] = 'File dibaca dengan pemisah "'.$this->pemisah.'".';
@@ -171,7 +171,7 @@ class ImporJamaah
                 .'jadi 30/11/1990 berarti 30 November 1990. Periksa contoh di bawah; kalau file Anda bulan dulu, perbaiki file dulu.';
         }
 
-        return ['gagal' => null, 'catatan' => $catatan, 'baris' => $baris];
+        return ['gagal' => null, 'catatan' => $catatan, 'baris' => $baris, 'keluarga' => $keluarga];
     }
 
     /**
@@ -202,6 +202,10 @@ class ImporJamaah
 
         return [
             'ringkasan' => ['total' => count($hasil['baris']), ...$hitung],
+            // Angka keluarga dilihat sekali pandang sebelum menekan Impor. Kolom yang
+            // tergeser satu langsung ketahuan di sini — "6.900 keluarga" atau "1 keluarga
+            // isi 7000" — bukan sesudah tujuh ribu baris terlanjur masuk.
+            'keluarga' => $hasil['keluarga'] ?? null,
             'catatan' => $hasil['catatan'],
             'gagal' => $hasil['gagal'],
             'baris' => array_slice($tampil, 0, self::MAKS_LAPORAN),
@@ -563,14 +567,27 @@ class ImporJamaah
      * terbaca, jadi tidak bisa ikut periksaBaris().
      *
      * @param  list<array>  $baris
+     * @return array{total:int, tanpa_kode:int, tanpa_kepala:int, terbesar:int, rata_rata:float}
      */
-    private function periksaKeluarga(array &$baris): void
+    private function periksaKeluarga(array &$baris): array
     {
         $kepala = [];
+        $anggota = [];
+        $tanpaKode = 0;
 
         foreach ($baris as $b) {
-            if ($b['data']['kode_keluarga'] !== null && ($b['data']['status_kk'] ?? null) === 'kepala_keluarga') {
-                $kepala[$b['data']['kode_keluarga']][] = $b['baris'];
+            $kode = $b['data']['kode_keluarga'];
+
+            if ($kode === null) {
+                $tanpaKode++;
+
+                continue;
+            }
+
+            $anggota[$kode] = ($anggota[$kode] ?? 0) + 1;
+
+            if (($b['data']['status_kk'] ?? null) === 'kepala_keluarga') {
+                $kepala[$kode][] = $b['baris'];
             }
         }
 
@@ -591,6 +608,21 @@ class ImporJamaah
                 continue;
             }
 
+            // File dipecah per desa lalu penomorannya dimulai dari 1 lagi — kode yang sama
+            // dipakai dua keluarga berbeda. Dari dalam satu file ini tidak kelihatan, dan
+            // akibatnya dua keluarga menyatu jadi satu kartu di layar Per Keluarga.
+            //
+            // Menambah anggota ke keluarga yang sudah ada tetap sah: yang ditolak cuma
+            // file yang membawa kepala keluarga kedua untuk kode yang sudah terpakai.
+            if (isset($kepala[$kode]) && isset($this->kepalaTersimpan[$kode])) {
+                $baris[$i]['pesan'][] = 'kode_keluarga "'.$kode.'" sudah dipakai keluarga lain di data yang ada. '
+                    .'Kalau ini keluarga yang sama, hapus baris kepala keluarganya dari file — anggotanya tetap tersambung sendiri. '
+                    .'Kalau keluarga yang berbeda, ganti kodenya (pakai awalan nama kelompok supaya tidak tabrakan antar file).';
+                $baris[$i]['status'] = 'error';
+
+                continue;
+            }
+
             // Tanpa kepala keluarga, barisnya tetap masuk dan tetap ketemu lewat
             // pencarian kode — cuma kepala_keluarga_id-nya yang tidak terisi.
             if (! isset($kepala[$kode]) && ! isset($this->kepalaTersimpan[$kode])) {
@@ -600,6 +632,19 @@ class ImporJamaah
                 }
             }
         }
+
+        $tanpaKepala = array_filter(
+            array_keys($anggota),
+            fn (string $kode) => ! isset($kepala[$kode]) && ! isset($this->kepalaTersimpan[$kode])
+        );
+
+        return [
+            'total' => count($anggota),
+            'tanpa_kode' => $tanpaKode,
+            'tanpa_kepala' => count($tanpaKepala),
+            'terbesar' => $anggota === [] ? 0 : max($anggota),
+            'rata_rata' => $anggota === [] ? 0.0 : round(array_sum($anggota) / count($anggota), 1),
+        ];
     }
 
     /**

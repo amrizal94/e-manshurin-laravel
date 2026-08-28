@@ -91,7 +91,7 @@ class JamaahController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Jamaah::visibleTo($request->user())
-            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama,daerah_id')
+            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama,daerah_id', 'kepalaKeluarga:id,nama_lengkap')
             ->withCount('photos')
             ->orderBy('nama_lengkap');
 
@@ -146,6 +146,58 @@ class JamaahController extends Controller
         );
 
         return response()->json(['success' => true, 'message' => 'OK', 'data' => $hasil]);
+    }
+
+    /**
+     * Menyambungkan beberapa jamaah sekaligus ke satu kepala keluarga.
+     *
+     * Empat orang serumah berarti empat kali buka-tutup form kalau dikerjakan satu-satu,
+     * dan sesudah impor massal ada ribuan orang yang perlu disambungkan. Ini menjadikannya
+     * satu tindakan.
+     */
+    public function sambungKeluarga(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'jamaah_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'jamaah_ids.*' => ['integer'],
+            'kepala_keluarga_id' => ['required', 'integer'],
+            // kepala_keluarga sengaja tidak boleh: menyamakannya borongan berarti membuat
+            // beberapa kepala keluarga sekaligus dalam satu rumah.
+            'status_kk' => ['nullable', 'in:suami,istri,anak,menantu,cucu,orang_tua,mertua'],
+        ]);
+
+        $user = $request->user();
+        $kepala = Jamaah::visibleTo($user)->find($data['kepala_keluarga_id']);
+        abort_unless($kepala, 404, 'Kepala keluarga itu tidak ada di wilayah Anda');
+        abort_unless($kepala->status_kk === 'kepala_keluarga', 422, 'Yang dipilih harus berstatus KK "Kepala Keluarga"');
+
+        // id-nya datang mentah dari klien: yang di luar wilayah user harus jatuh dari
+        // daftar sebelum apa pun ditulis, bukan sesudahnya.
+        $target = Jamaah::visibleTo($user)
+            ->whereIn('id', $data['jamaah_ids'])
+            ->whereKeyNot($kepala->id)
+            ->pluck('id');
+
+        abort_if($target->isEmpty(), 422, 'Tidak ada jamaah yang bisa disambungkan.');
+
+        // Kode keluarganya ikut kepala keluarga supaya pengelompokan lewat kode dan lewat
+        // rujukan tidak berbeda isi.
+        Jamaah::whereIn('id', $target)->update([
+            'kepala_keluarga_id' => $kepala->id,
+            'kode_keluarga' => $kepala->kode_keluarga,
+            ...(($data['status_kk'] ?? null) !== null ? ['status_kk' => $data['status_kk']] : []),
+            'updated_at' => now(),
+        ]);
+
+        activity()->causedBy($user)
+            ->withProperties(['kepala_keluarga_id' => $kepala->id, 'jamaah_ids' => $target->all()])
+            ->log('Sambungkan '.$target->count().' jamaah ke keluarga '.$kepala->nama_lengkap);
+
+        return response()->json([
+            'success' => true,
+            'message' => $target->count().' jamaah disambungkan ke keluarga '.$kepala->nama_lengkap,
+            'data' => ['disambungkan' => $target->count()],
+        ]);
     }
 
     public function store(Request $request): JsonResponse

@@ -99,7 +99,7 @@ class DaftarKeluarga
         $intiId = $halaman->pluck('id')->unique()->values();
 
         $anggota = Jamaah::visibleTo($this->actor)
-            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama')
+            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama', 'kepalaKeluarga:id,nama_lengkap')
             ->withCount('photos')
             ->where(fn (Builder $q) => $q
                 ->whereIn('kode_keluarga', $kode)

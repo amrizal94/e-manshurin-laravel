@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/jamaahs/impor/{imporId}', [ImporJamaahController::class, 'batal']);
         // Sebelum apiResource: kalau tidak, "keluarga" dikira id jamaah dan selalu 404.
         Route::get('/jamaahs/keluarga', [JamaahController::class, 'keluarga']);
+        Route::post('/jamaahs/sambung-keluarga', [JamaahController::class, 'sambungKeluarga']);
         Route::apiResource('jamaahs', JamaahController::class);
         Route::post('/jamaahs/{jamaah}/photos', [JamaahController::class, 'storePhoto']);
         Route::delete('/jamaahs/{jamaah}/photos/{photo}', [JamaahController::class, 'destroyPhoto']);

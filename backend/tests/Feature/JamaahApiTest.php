@@ -346,4 +346,120 @@ class JamaahApiTest extends TestCase
 
         $this->assertSame('KK-01', Jamaah::sole()->kode_keluarga);
     }
+
+    public function test_sambung_keluarga_borongan(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga', 'kode_keluarga' => 'KLANDERAN-001']);
+        $siti = $this->jamaah('Siti');
+        $rian = $this->jamaah('Rian');
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$siti->id, $rian->id],
+            'kepala_keluarga_id' => $sugeng->id,
+        ])->assertOk()->assertJsonPath('data.disambungkan', 2);
+
+        foreach ([$siti, $rian] as $anggota) {
+            $anggota->refresh();
+            $this->assertSame($sugeng->id, $anggota->kepala_keluarga_id);
+            // Kode ikut kepala keluarga: pengelompokan lewat kode dan lewat rujukan harus sama isi.
+            $this->assertSame('KLANDERAN-001', $anggota->kode_keluarga);
+        }
+    }
+
+    public function test_sambung_keluarga_bisa_menyamakan_status_kk(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+        $rian = $this->jamaah('Rian');
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$rian->id],
+            'kepala_keluarga_id' => $sugeng->id,
+            'status_kk' => 'anak',
+        ])->assertOk();
+
+        $this->assertSame('anak', $rian->refresh()->status_kk);
+    }
+
+    public function test_sambung_keluarga_tidak_boleh_menyamakan_jadi_kepala_keluarga(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+        $rian = $this->jamaah('Rian');
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$rian->id],
+            'kepala_keluarga_id' => $sugeng->id,
+            'status_kk' => 'kepala_keluarga',
+        ])->assertStatus(422);
+    }
+
+    public function test_sambung_keluarga_menolak_target_yang_bukan_kepala_keluarga(): void
+    {
+        $siti = $this->jamaah('Siti', ['status_kk' => 'istri']);
+        $rian = $this->jamaah('Rian');
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$rian->id],
+            'kepala_keluarga_id' => $siti->id,
+        ])->assertStatus(422);
+
+        $this->assertNull($rian->refresh()->kepala_keluarga_id);
+    }
+
+    public function test_sambung_keluarga_melewati_jamaah_di_luar_wilayah(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+
+        $lain = Desa::create(['daerah_id' => $this->kelompok->desa->daerah_id, 'nama' => 'Desa B']);
+        $kelompokLain = Kelompok::create(['desa_id' => $lain->id, 'nama' => 'Kelompok 2']);
+        $luar = Jamaah::create([
+            'kelompok_id' => $kelompokLain->id, 'nama_lengkap' => 'Luar',
+            'jenis_kelamin' => 'L', 'kategori_usia' => 'menikah',
+        ]);
+
+        $adminDesa = User::factory()->create(['desa_id' => $this->kelompok->desa_id]);
+        $adminDesa->assignRole('admin');
+
+        $this->actingAs($adminDesa)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$luar->id],
+            'kepala_keluarga_id' => $sugeng->id,
+        ])->assertStatus(422);
+
+        $this->assertNull($luar->refresh()->kepala_keluarga_id);
+    }
+
+    public function test_sambung_keluarga_tidak_menyambungkan_kepala_ke_dirinya_sendiri(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+
+        $this->actingAs($this->admin)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$sugeng->id],
+            'kepala_keluarga_id' => $sugeng->id,
+        ])->assertStatus(422);
+
+        $this->assertNull($sugeng->refresh()->kepala_keluarga_id);
+    }
+
+    public function test_role_absensi_tidak_boleh_menyambungkan_keluarga(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+        $rian = $this->jamaah('Rian');
+
+        $petugas = User::factory()->create();
+        $petugas->assignRole('absensi');
+
+        $this->actingAs($petugas)->postJson('/api/jamaahs/sambung-keluarga', [
+            'jamaah_ids' => [$rian->id],
+            'kepala_keluarga_id' => $sugeng->id,
+        ])->assertForbidden();
+    }
+
+    public function test_daftar_jamaah_membawa_nama_kepala_keluarganya(): void
+    {
+        $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);
+        $this->jamaah('Rian', ['status_kk' => 'anak', 'kepala_keluarga_id' => $sugeng->id]);
+
+        $rows = collect($this->actingAs($this->admin)->getJson('/api/jamaahs')->assertOk()->json('data.data'));
+
+        $this->assertSame('Sugeng', $rows->firstWhere('nama_lengkap', 'Rian')['kepala_keluarga']['nama_lengkap']);
+    }
 }
