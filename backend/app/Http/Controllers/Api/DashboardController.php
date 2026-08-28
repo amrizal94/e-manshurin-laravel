@@ -35,6 +35,14 @@ class DashboardController extends Controller
             $jumlahKelompok = Kelompok::count();
         }
 
+        // Semua angka orang dihitung dari jamaah aktif saja, supaya laki-laki + perempuan
+        // persis sama dengan Jamaah Aktif. Angka yang tidak menjumlah akan dilaporkan
+        // sebagai bug, dan memang pantas.
+        $perJenisKelamin = (clone $jamaah)->where('aktif', true)
+            ->selectRaw('jenis_kelamin, count(*) as total')
+            ->groupBy('jenis_kelamin')
+            ->pluck('total', 'jenis_kelamin');
+
         return response()->json([
             'success' => true,
             'message' => 'OK',
@@ -42,6 +50,14 @@ class DashboardController extends Controller
                 'total_jamaah' => (clone $jamaah)->where('aktif', true)->count(),
                 'total_tidak_aktif' => (clone $jamaah)->where('aktif', false)->count(),
                 'total_mubaligh' => (clone $jamaah)->where('aktif', true)->where('status_mubaligh', true)->count(),
+                'total_laki' => (int) ($perJenisKelamin['L'] ?? 0),
+                'total_perempuan' => (int) ($perJenisKelamin['P'] ?? 0),
+                // Yang dihitung kepala keluarganya, bukan jumlah kartu keluarga di daftar:
+                // keluarga yang belum punya kepala memang belum jadi satu KK.
+                'total_kk' => (clone $jamaah)->where('aktif', true)->where('status_kk', 'kepala_keluarga')->count(),
+                // Pendampingnya wajib. Tanpa ini "21 KK untuk 202 jamaah" terbaca sebagai
+                // kenyataan, padahal itu pekerjaan yang belum selesai.
+                'belum_masuk_keluarga' => (clone $jamaah)->where('aktif', true)->belumMasukKeluarga()->count(),
                 'jumlah_daerah' => $user->daerah_id || $user->desa_id || $user->kelompok_id ? null : Daerah::count(),
                 'jumlah_desa' => $jumlahDesa,
                 'jumlah_kelompok' => $jumlahKelompok,

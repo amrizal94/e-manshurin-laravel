@@ -195,7 +195,14 @@ export default function JamaahPage() {
   }, [kelompokForm, versiKepala]);
 
   useEffect(() => {
-    Promise.resolve().then(() => setMode(bacaMode()));
+    // Dibaca dari location, bukan useSearchParams: halaman ini dipraserender, dan hook
+    // itu menuntut pembungkus Suspense demi satu tanda centang.
+    const dariDashboard = new URLSearchParams(window.location.search).has("tanpa_keluarga");
+
+    Promise.resolve().then(() => {
+      setMode(dariDashboard ? "keluarga" : bacaMode());
+      if (dariDashboard) setTanpaKeluarga(true);
+    });
   }, []);
 
   useEffect(reload, [reload]);
