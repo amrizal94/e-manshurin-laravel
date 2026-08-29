@@ -146,6 +146,7 @@ export default function JamaahPage() {
   const [searchDebounced, setSearchDebounced] = useState("");
   const [filterKelompok, setFilterKelompok] = useState("");
   const [filterKategori, setFilterKategori] = useState("");
+  const [hanya4s, setHanya4s] = useState(false);
   // Disaring lewat satu jamaah, bukan lewat kodenya: keluarga yang datanya dari form
   // lama belum punya kode, dan server yang memutuskan sisi mana yang dipakai.
   const [keluarga, setKeluarga] = useState<{ id: number; nama: string } | null>(null);
@@ -190,6 +191,7 @@ export default function JamaahPage() {
     }
 
     if (filterKategori) params.set("kategori_usia", filterKategori);
+    if (hanya4s) params.set("pengurus_4s", "1");
     if (keluarga) params.set("keluarga_id", String(keluarga.id));
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
@@ -202,7 +204,7 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, keluarga, page]);
+  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, hanya4s, keluarga, page]);
 
   /**
    * Kepala keluarga diambil per kelompok yang sedang dipilih di form, bukan sekaligus.
@@ -488,6 +490,16 @@ export default function JamaahPage() {
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
+        )}
+        {mode === "orang" && (
+          <button
+            onClick={() => { setHanya4s(!hanya4s); setPage(1); }}
+            aria-pressed={hanya4s}
+            className={`rounded-lg border px-3 py-2 text-sm ${hanya4s
+              ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-900"
+              : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
+            Pengurus 4S
+          </button>
         )}
         {mode === "keluarga" && (
           <button

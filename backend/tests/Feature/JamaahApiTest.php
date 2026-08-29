@@ -282,6 +282,17 @@ class JamaahApiTest extends TestCase
         ]);
     }
 
+    public function test_filter_pengurus_4s(): void
+    {
+        $this->jamaah('Pengurus', ['pengurus_4s' => true]);
+        $this->jamaah('Bukan Pengurus');
+
+        $nama = collect($this->actingAs($this->admin)->getJson('/api/jamaahs?pengurus_4s=1')
+            ->assertOk()->json('data.data'))->pluck('nama_lengkap')->all();
+
+        $this->assertSame(['Pengurus'], $nama);
+    }
+
     public function test_filter_keluarga_memunculkan_serumah_lewat_kepala_keluarga_id(): void
     {
         $sugeng = $this->jamaah('Sugeng', ['status_kk' => 'kepala_keluarga']);

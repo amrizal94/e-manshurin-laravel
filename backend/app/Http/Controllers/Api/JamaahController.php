@@ -105,6 +105,11 @@ class JamaahController extends Controller
         if ($request->filled('aktif')) {
             $query->where('aktif', $request->boolean('aktif'));
         }
+        // Dipakai memeriksa hasil pencentangan sebelum pengajiannya dijadwalkan:
+        // daftar pesertanya tidak kelihatan di mana pun sampai kegiatannya dibuat.
+        if ($request->filled('pengurus_4s')) {
+            $query->where('pengurus_4s', $request->boolean('pengurus_4s'));
+        }
         if ($request->filled('status_kk')) {
             $query->where('status_kk', $request->string('status_kk'));
         }
