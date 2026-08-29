@@ -46,6 +46,8 @@ class Kegiatan extends Model
         'usman' => ['usman'],
         'ibu' => ['menikah', 'janda'],
         'bapak' => ['menikah', 'duda'],
+        // Semua usia sengaja diloloskan: yang menyaring pengajian ini benderanya, bukan umur.
+        'pengurus_4s' => ['paud_tk', 'caberawit', 'praremaja', 'remaja', 'usman', 'menikah', 'janda', 'duda'],
     ];
 
     /**
@@ -53,6 +55,13 @@ class Kegiatan extends Model
      * Kategori usia saja tidak cukup: "menikah" berisi suami dan istri sekaligus.
      */
     public const GENDER_MAP = ['ibu' => 'P', 'bapak' => 'L'];
+
+    /**
+     * Jenis pengajian yang pesertanya ditentukan bendera di kartu jamaah, bukan usia.
+     * Yang sudah dicentang pengurus tidak boleh hilang dari daftar peserta gara-gara
+     * kategori usianya di luar dugaan, jadi KATEGORI_MAP-nya dibiarkan terbuka.
+     */
+    public const FLAG_MAP = ['pengurus_4s' => 'pengurus_4s'];
 
     protected function casts(): array
     {
@@ -203,6 +212,10 @@ class Kegiatan extends Model
             ->when(
                 self::GENDER_MAP[$this->jenis_pengajian] ?? null,
                 fn (Builder $q, string $jk) => $q->where('jenis_kelamin', $jk)
+            )
+            ->when(
+                self::FLAG_MAP[$this->jenis_pengajian] ?? null,
+                fn (Builder $q, string $kolom) => $q->where($kolom, true)
             );
 
         if ($this->kelompok_id) {

@@ -33,6 +33,7 @@ class JamaahController extends Controller
             'kategori_usia' => ['required', 'in:paud_tk,caberawit,praremaja,remaja,usman,menikah,janda,duda'],
             'pekerjaan' => ['nullable', 'string', 'max:255'],
             'status_mubaligh' => ['boolean'],
+            'pengurus_4s' => ['boolean'],
             'status_kk' => ['nullable', 'in:'.implode(',', self::STATUS_KK)],
             'kode_keluarga' => ['nullable', 'string', 'max:50'],
             'kepala_keluarga_id' => ['nullable', 'exists:jamaahs,id'],

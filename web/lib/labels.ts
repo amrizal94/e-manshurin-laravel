@@ -17,6 +17,7 @@ export const JENIS_PENGAJIAN: Record<string, string> = {
   usman: "Usman",
   ibu: "Ibu-ibu",
   bapak: "Bapak-bapak",
+  pengurus_4s: "Pengurus 4S",
 };
 
 export const STATUS_KK: Record<string, string> = {

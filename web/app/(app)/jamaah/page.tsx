@@ -23,6 +23,7 @@ interface Jamaah {
   kategori_usia: string;
   pekerjaan: string | null;
   status_mubaligh: boolean;
+  pengurus_4s: boolean;
   status_kk: string | null;
   kode_keluarga: string | null;
   kepala_keluarga_id: number | null;
@@ -118,7 +119,7 @@ function bacaTerakhir(): { kelompok_id?: number; kategori_usia?: string } {
 const KOSONG = {
   nama_lengkap: "", nama_panggilan: "", jenis_kelamin: "L", tempat_lahir: "",
   tanggal_lahir: "", alamat: "", no_hp: "", kelompok_id: 0, kategori_usia: "remaja",
-  pekerjaan: "", status_mubaligh: false, status_kk: "", kode_keluarga: "",
+  pekerjaan: "", status_mubaligh: false, pengurus_4s: false, status_kk: "", kode_keluarga: "",
   kepala_keluarga_id: "" as number | "", aktif: true, keterangan_tidak_aktif: "",
 };
 
@@ -325,6 +326,7 @@ export default function JamaahPage() {
       tanggal_lahir: j.tanggal_lahir?.slice(0, 10) ?? "", alamat: j.alamat ?? "",
       no_hp: j.no_hp ?? "", kelompok_id: j.kelompok_id, kategori_usia: j.kategori_usia,
       pekerjaan: j.pekerjaan ?? "", status_mubaligh: j.status_mubaligh,
+      pengurus_4s: j.pengurus_4s,
       status_kk: j.status_kk ?? "", kode_keluarga: j.kode_keluarga ?? "",
       kepala_keluarga_id: j.kepala_keluarga_id ?? "",
       aktif: j.aktif, keterangan_tidak_aktif: j.keterangan_tidak_aktif ?? "",
@@ -856,6 +858,11 @@ export default function JamaahPage() {
                   <input type="checkbox" checked={form.status_mubaligh}
                     onChange={(e) => setForm({ ...form, status_mubaligh: e.target.checked })} />
                   Mubaligh
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={form.pengurus_4s}
+                    onChange={(e) => setForm({ ...form, pengurus_4s: e.target.checked })} />
+                  Pengurus 4S
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" checked={form.aktif}

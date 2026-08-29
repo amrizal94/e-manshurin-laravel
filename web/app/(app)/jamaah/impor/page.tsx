@@ -40,7 +40,8 @@ interface Impor {
 const WAJIB = ["desa", "kelompok", "nama_lengkap", "jenis_kelamin", "kategori_usia"];
 const OPSIONAL = [
   "nama_panggilan", "tempat_lahir", "tanggal_lahir", "alamat", "no_hp",
-  "pekerjaan", "status_kk", "kode_keluarga", "status_mubaligh", "aktif", "keterangan_tidak_aktif",
+  "pekerjaan", "status_kk", "kode_keluarga", "status_mubaligh", "pengurus_4s",
+  "aktif", "keterangan_tidak_aktif",
 ];
 
 const WARNA: Record<Baris["status"], string> = {

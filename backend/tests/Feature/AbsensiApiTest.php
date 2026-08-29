@@ -107,6 +107,32 @@ class AbsensiApiTest extends TestCase
     }
 
     /**
+     * Pengajian pengurus 4S disaring benderanya, bukan usianya: yang dicentang ikut walau
+     * kategori usianya apa pun, yang tidak dicentang tetap di luar walau seumuran.
+     */
+    public function test_pengajian_pengurus_4s_menyaring_bendera_bukan_usia(): void
+    {
+        $buat = fn (string $nama, string $kategori, bool $pengurus) => Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => $nama,
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => $kategori,
+            'pengurus_4s' => $pengurus,
+        ]);
+
+        $buat('Pengurus Menikah', 'menikah', true);
+        $buat('Pengurus Remaja', 'remaja', true);
+        $buat('Bukan Pengurus', 'menikah', false);
+
+        $kegiatan = $this->buatKegiatan('pengurus_4s');
+
+        $this->assertSame(
+            ['Pengurus Menikah', 'Pengurus Remaja'],
+            $kegiatan->pesertaQuery()->orderBy('nama_lengkap')->pluck('nama_lengkap')->all()
+        );
+    }
+
+    /**
      * Klien yang mengirim target baru tanpa menyertakan kolom target lama tidak boleh
      * menyisakan dua target sekaligus — kegiatan harus tetap punya tepat satu.
      */

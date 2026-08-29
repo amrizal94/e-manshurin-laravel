@@ -29,6 +29,7 @@ class ImporJamaahController extends Controller
         'kategori_usia' => 'menikah',
         'status_kk' => 'kepala_keluarga',
         'status_mubaligh' => 'tidak',
+        'pengurus_4s' => 'tidak',
         'aktif' => 'ya',
         'keterangan_tidak_aktif' => '',
     ];

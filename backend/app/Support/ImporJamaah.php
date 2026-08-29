@@ -30,7 +30,8 @@ class ImporJamaah
 
     public const OPSIONAL = [
         'nama_panggilan', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp',
-        'pekerjaan', 'status_kk', 'kode_keluarga', 'status_mubaligh', 'aktif', 'keterangan_tidak_aktif',
+        'pekerjaan', 'status_kk', 'kode_keluarga', 'status_mubaligh', 'pengurus_4s',
+        'aktif', 'keterangan_tidak_aktif',
     ];
 
     /**
@@ -69,6 +70,7 @@ class ImporJamaah
         'jk' => 'jenis_kelamin', 'l_p' => 'jenis_kelamin',
         'kategori' => 'kategori_usia', 'usia' => 'kategori_usia',
         'mubaligh' => 'status_mubaligh', 'kk' => 'status_kk',
+        '4s' => 'pengurus_4s', 'pengurus' => 'pengurus_4s',
         'no_kk' => 'kode_keluarga', 'kode_kk' => 'kode_keluarga', 'keluarga' => 'kode_keluarga',
         'nomor_kk' => 'kode_keluarga', 'kode' => 'kode_keluarga',
     ];
@@ -81,7 +83,7 @@ class ImporJamaah
         'kelompok_id' => null, 'nama_lengkap' => '', 'nama_panggilan' => null,
         'jenis_kelamin' => 'L', 'tempat_lahir' => null, 'tanggal_lahir' => null,
         'alamat' => null, 'no_hp' => null, 'kategori_usia' => '', 'pekerjaan' => null,
-        'status_mubaligh' => false, 'status_kk' => null, 'kode_keluarga' => null, 'kepala_keluarga_id' => null,
+        'status_mubaligh' => false, 'pengurus_4s' => false, 'status_kk' => null, 'kode_keluarga' => null, 'kepala_keluarga_id' => null,
         'aktif' => true, 'keterangan_tidak_aktif' => null,
     ];
 
@@ -513,7 +515,7 @@ class ImporJamaah
             }
         }
 
-        foreach (['status_mubaligh' => false, 'aktif' => true] as $kunci => $bawaan) {
+        foreach (['status_mubaligh' => false, 'pengurus_4s' => false, 'aktif' => true] as $kunci => $bawaan) {
             $data[$kunci] = ($nilai[$kunci] ?? '') === '' ? $bawaan : $this->boolean($nilai[$kunci]);
             if ($data[$kunci] === null) {
                 $pesan[] = $kunci.' "'.$nilai[$kunci].'" tidak dikenal (isi ya atau tidak)';
