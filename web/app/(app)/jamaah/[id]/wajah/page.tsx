@@ -40,10 +40,9 @@ export default function WajahPage() {
   useEffect(reload, [reload]);
 
   function unggah(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    kirim(file, file.name);
+    if (files.length) kirim(files);
   }
 
   /** Jepret dari kamera. Kamera dibiarkan menyala: butuh minimal 3 foto, jadi
@@ -56,24 +55,38 @@ export default function WajahPage() {
     canvas.height = video.videoHeight;
     canvas.getContext("2d")!.drawImage(video, 0, 0);
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
-    if (blob) kirim(blob, "wajah.jpg");
+    if (blob) kirim([new File([blob], "wajah.jpg", { type: "image/jpeg" })]);
   }
 
-  async function kirim(foto: Blob, nama: string) {
+  /**
+   * Satu per satu: backend menerima satu foto per request. Yang gagal tidak
+   * boleh menghapus jejak yang berhasil — wajah tak terdeteksi di satu foto
+   * itu biasa, dan petugas perlu tahu foto mana, bukan cuma bahwa ada yang
+   * gagal. Pesan sukses diambil dari respons terakhir karena backend yang
+   * menghitung total fotonya, bukan halaman ini.
+   */
+  async function kirim(fotos: File[]) {
     setError("");
     setPesan("");
     setUploading(true);
-    const body = new FormData();
-    body.append("photo", foto, nama);
-    try {
-      const res = await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body });
-      setPesan(res.message);
-      reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal unggah");
-    } finally {
-      setUploading(false);
+
+    const gagal: string[] = [];
+    let terakhir = "";
+
+    for (const foto of fotos) {
+      const body = new FormData();
+      body.append("photo", foto, foto.name);
+      try {
+        terakhir = (await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body })).message;
+      } catch (err) {
+        gagal.push(`${foto.name} — ${err instanceof Error ? err.message : "gagal unggah"}`);
+      }
     }
+
+    setUploading(false);
+    setPesan(terakhir);
+    setError(gagal.join(" · "));
+    reload();
   }
 
   async function hapus(foto: Foto) {
@@ -108,15 +121,15 @@ export default function WajahPage() {
           <input
             type="file"
             accept="image/*"
-            capture="user"
+            multiple
             className="hidden"
             disabled={uploading}
             onChange={unggah}
           />
         </label>
 
-        {/* Di HP tombol di atas sudah membuka kamera; di laptop `capture` diabaikan
-            browser, jadi tanpa ini foto harus diambil dari perangkat lain dulu. */}
+        {/* Kamera dalam halaman: preview-nya tetap menyala antar jepretan, jadi
+            beberapa pose bisa diambil tanpa buka-tutup pemilih berkas. */}
         <button
           onClick={() => setKamera((k) => !k)}
           className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
