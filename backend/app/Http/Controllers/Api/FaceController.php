@@ -59,6 +59,15 @@ class FaceController extends Controller
 
         $extracted = $this->extract($request);
 
+        // Enroll ratusan jamaah berturut-turut, satu foto nyasar ke kartu yang salah tidak
+        // akan protes: rusaknya baru kelihatan di kiosk, saat absensi tercatat atas nama
+        // orang yang tidak hadir. Ambangnya sengaja sama dengan ambang pencocokan — kalau
+        // kiosk nanti tidak akan menganggap dua wajah ini satu orang, enroll juga tidak boleh.
+        $terdaftar = JamaahFaceDescriptor::where('jamaah_id', $jamaah->id)->get();
+        if ($terdaftar->isNotEmpty() && $this->skorTerbaik($extracted['descriptor'], $terdaftar)['jamaah_id'] === null) {
+            abort(422, 'Wajah di foto ini berbeda dengan foto yang sudah tersimpan. Kalau justru foto lama yang salah, hapus dulu foto lamanya.');
+        }
+
         $path = $request->file('photo')->store("jamaah/{$jamaah->id}", 'public');
         $photo = $jamaah->photos()->create(['path' => $path]);
 

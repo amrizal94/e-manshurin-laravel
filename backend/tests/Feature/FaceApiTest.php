@@ -78,6 +78,48 @@ class FaceApiTest extends TestCase
         $this->assertStringStartsWith('eyJpdiI6', $descriptor->getRawOriginal('descriptor')); // terenkripsi at-rest
     }
 
+    /**
+     * Foto kedua yang wajahnya orang lain ditolak: kalau lolos, kiosk akan mencatat
+     * hadir atas nama jamaah ini setiap kali si orang lain lewat.
+     */
+    public function test_enroll_menolak_wajah_yang_beda_dengan_foto_tersimpan(): void
+    {
+        JamaahFaceDescriptor::create([
+            'jamaah_id' => $this->jamaah->id,
+            'descriptor' => $this->vektor(0),
+        ]);
+
+        Http::fake(['*/extract' => Http::response(['descriptor' => $this->vektor(1), 'confidence' => 0.99])]);
+
+        $this->actingAs($this->admin)
+            ->postJson("/api/jamaahs/{$this->jamaah->id}/face-enroll", [
+                'photo' => UploadedFile::fake()->image('orang-lain.jpg'),
+            ])
+            ->assertStatus(422);
+
+        $this->assertSame(0, $this->jamaah->photos()->count());
+        $this->assertSame(1, JamaahFaceDescriptor::count());
+    }
+
+    /** Wajah yang sama tetap masuk walau posenya beda — skornya di atas ambang. */
+    public function test_enroll_menerima_foto_kedua_dari_orang_yang_sama(): void
+    {
+        JamaahFaceDescriptor::create([
+            'jamaah_id' => $this->jamaah->id,
+            'descriptor' => $this->vektor(0),
+        ]);
+
+        Http::fake(['*/extract' => Http::response(['descriptor' => $this->vektor(0), 'confidence' => 0.97])]);
+
+        $this->actingAs($this->admin)
+            ->post("/api/jamaahs/{$this->jamaah->id}/face-enroll", [
+                'photo' => UploadedFile::fake()->image('pose-lain.jpg'),
+            ])
+            ->assertCreated();
+
+        $this->assertSame(2, JamaahFaceDescriptor::count());
+    }
+
     public function test_identify_mencatat_hadir_metode_face(): void
     {
         JamaahFaceDescriptor::create([

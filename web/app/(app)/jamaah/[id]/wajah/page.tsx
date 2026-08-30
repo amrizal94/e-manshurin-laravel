@@ -9,6 +9,44 @@ import { useRoleGuard } from "@/lib/useRoleGuard";
 
 const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api").replace(/\/api$/, "");
 
+/**
+ * Sisi terpanjang saat dikirim. Bukan 640 seperti jepretan kamera: di foto galeri
+ * wajahnya sering jauh dan kecil, dan kalau dikecilkan terlalu agresif wajahnya
+ * malah tidak terdeteksi sama sekali. 1280 masih ratusan kilobyte.
+ */
+const MAKS_SISI = 1280;
+
+/**
+ * Kecilkan di browser sebelum kirim. Foto HP 12 MP menembus batas 5 MB backend dan
+ * membuat unggahan lewat sinyal masjid bertele-tele, padahal yang dibutuhkan cuma
+ * descriptor-nya. Storage server ikut ditolong: 200 jamaah x 3 foto itu giga-an.
+ */
+async function kecilkan(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const skala = Math.min(1, MAKS_SISI / Math.max(bitmap.width, bitmap.height));
+    if (skala === 1) {
+      bitmap.close();
+      return file;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * skala);
+    canvas.height = Math.round(bitmap.height * skala);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+    if (!blob) return file;
+
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    // Format yang tidak bisa dibaca browser — HEIC mentah dari iPhone, misalnya.
+    // Kirim apa adanya, biar backend yang menolak dengan alasannya sendiri.
+    return file;
+  }
+}
+
 interface Foto { id: number; path: string }
 interface Jamaah { id: number; nama_lengkap: string; photos: Foto[] }
 
@@ -19,6 +57,9 @@ export default function WajahPage() {
   const [pesan, setPesan] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  // Tiap foto menunggu face-service (timeout 15 detik di backend). Tanpa angka,
+  // tombol diam belasan detik dan petugas mengira halamannya menggantung.
+  const [progres, setProgres] = useState("");
   const [loading, setLoading] = useState(true);
   const [kamera, setKamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -73,16 +114,19 @@ export default function WajahPage() {
     const gagal: string[] = [];
     let terakhir = "";
 
-    for (const foto of fotos) {
+    for (const [i, asli] of fotos.entries()) {
+      setProgres(fotos.length > 1 ? ` ${i + 1}/${fotos.length}` : "");
+      const foto = await kecilkan(asli);
       const body = new FormData();
       body.append("photo", foto, foto.name);
       try {
         terakhir = (await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body })).message;
       } catch (err) {
-        gagal.push(`${foto.name} — ${err instanceof Error ? err.message : "gagal unggah"}`);
+        gagal.push(`${asli.name} — ${err instanceof Error ? err.message : "gagal unggah"}`);
       }
     }
 
+    setProgres("");
     setUploading(false);
     setPesan(terakhir);
     setError(gagal.join(" · "));
@@ -117,7 +161,7 @@ export default function WajahPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-block cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-          {uploading ? "Memproses..." : "+ Ambil / Pilih Foto"}
+          {uploading ? `Memproses${progres}...` : "+ Ambil / Pilih Foto"}
           <input
             type="file"
             accept="image/*"
