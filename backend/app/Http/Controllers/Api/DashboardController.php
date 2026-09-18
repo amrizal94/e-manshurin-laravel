@@ -43,6 +43,16 @@ class DashboardController extends Controller
             ->groupBy('jenis_kelamin')
             ->pluck('total', 'jenis_kelamin');
 
+        // Totalnya sengaja tidak dikirim: L + P di sisi tampilan, jadi mustahil
+        // batang dan angka di sebelahnya bercerita beda.
+        $perKategori = [];
+        foreach ((clone $jamaah)->where('aktif', true)
+            ->selectRaw('kategori_usia, jenis_kelamin, count(*) as total')
+            ->groupBy('kategori_usia', 'jenis_kelamin')
+            ->get() as $baris) {
+            $perKategori[$baris->kategori_usia][$baris->jenis_kelamin] = (int) $baris->total;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'OK',
@@ -61,10 +71,8 @@ class DashboardController extends Controller
                 'jumlah_daerah' => $user->daerah_id || $user->desa_id || $user->kelompok_id ? null : Daerah::count(),
                 'jumlah_desa' => $jumlahDesa,
                 'jumlah_kelompok' => $jumlahKelompok,
-                'per_kategori_usia' => (clone $jamaah)->where('aktif', true)
-                    ->selectRaw('kategori_usia, count(*) as total')
-                    ->groupBy('kategori_usia')
-                    ->pluck('total', 'kategori_usia'),
+                // Objek, bukan array kosong, walau wilayahnya belum berisi jamaah.
+                'per_kategori_usia' => (object) $perKategori,
                 // Batas bulan dihitung dalam waktu setempat: dengan now() polos yang UTC,
                 // tanggal 1 sebelum pukul 07.00 WIB masih terhitung bulan lalu.
                 'kegiatan_bulan_ini' => Kegiatan::visibleTo($user)

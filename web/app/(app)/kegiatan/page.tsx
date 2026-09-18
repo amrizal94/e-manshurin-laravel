@@ -83,8 +83,14 @@ export default function KegiatanPage() {
   // urut tanggal menurun dibuka pada kegiatan bulan depan dan yang hari ini terkubur.
   // Diisi sesudah mount, bukan sebagai nilai awal: halaman ini diprarender waktu build,
   // dan "hari ini" versi build tidak sama dengan versi pembacanya.
+  // Datang dari "Kegiatan Bulan Ini" di dashboard: rentangnya ikut link, supaya jumlah
+  // di sini sama dengan angka yang diklik.
   useEffect(() => {
-    Promise.resolve().then(() => setFilterSampai(hariIni()));
+    const url = new URLSearchParams(window.location.search);
+    Promise.resolve().then(() => {
+      setFilterDari(url.get("dari") ?? "");
+      setFilterSampai(url.get("sampai") ?? hariIni());
+    });
   }, []);
 
   useEffect(reload, [reload]);

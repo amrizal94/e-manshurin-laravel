@@ -147,6 +147,11 @@ export default function JamaahPage() {
   const [filterKelompok, setFilterKelompok] = useState("");
   const [filterKategori, setFilterKategori] = useState("");
   const [hanya4s, setHanya4s] = useState(false);
+  // Tiga ini terutama diisi link dashboard, dan sengaja tampil sebagai kontrol biasa:
+  // saringan yang tidak kelihatan membuat daftar tampak kurang tanpa sebab.
+  const [filterJk, setFilterJk] = useState("");
+  const [filterAktif, setFilterAktif] = useState("");
+  const [hanyaMubaligh, setHanyaMubaligh] = useState(false);
   // Disaring lewat satu jamaah, bukan lewat kodenya: keluarga yang datanya dari form
   // lama belum punya kode, dan server yang memutuskan sisi mana yang dipakai.
   const [keluarga, setKeluarga] = useState<{ id: number; nama: string } | null>(null);
@@ -192,6 +197,9 @@ export default function JamaahPage() {
 
     if (filterKategori) params.set("kategori_usia", filterKategori);
     if (hanya4s) params.set("pengurus_4s", "1");
+    if (filterJk) params.set("jenis_kelamin", filterJk);
+    if (filterAktif) params.set("aktif", filterAktif);
+    if (hanyaMubaligh) params.set("status_mubaligh", "1");
     if (keluarga) params.set("keluarga_id", String(keluarga.id));
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
@@ -204,7 +212,8 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, hanya4s, keluarga, page]);
+  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, hanya4s,
+    filterJk, filterAktif, hanyaMubaligh, keluarga, page]);
 
   /**
    * Kepala keluarga diambil per kelompok yang sedang dipilih di form, bukan sekaligus.
@@ -232,11 +241,20 @@ export default function JamaahPage() {
   useEffect(() => {
     // Dibaca dari location, bukan useSearchParams: halaman ini dipraserender, dan hook
     // itu menuntut pembungkus Suspense demi satu tanda centang.
-    const dariDashboard = new URLSearchParams(window.location.search).has("tanpa_keluarga");
+    const url = new URLSearchParams(window.location.search);
+    const dariDashboard = url.has("tanpa_keluarga");
+    // Angka dashboard dihitung per orang; kalau mode tersimpannya Per Keluarga,
+    // saringan ini tidak berlaku dan jumlahnya tidak akan cocok.
+    const saringanOrang = ["kategori_usia", "jenis_kelamin", "aktif", "status_mubaligh"]
+      .some((k) => url.has(k));
 
     Promise.resolve().then(() => {
-      setMode(dariDashboard ? "keluarga" : bacaMode());
+      setMode(dariDashboard ? "keluarga" : saringanOrang ? "orang" : bacaMode());
       if (dariDashboard) setTanpaKeluarga(true);
+      setFilterKategori(url.get("kategori_usia") ?? "");
+      setFilterJk(url.get("jenis_kelamin") ?? "");
+      setFilterAktif(url.get("aktif") ?? "");
+      setHanyaMubaligh(url.has("status_mubaligh"));
     });
   }, []);
 
@@ -492,14 +510,46 @@ export default function JamaahPage() {
           </select>
         )}
         {mode === "orang" && (
-          <button
-            onClick={() => { setHanya4s(!hanya4s); setPage(1); }}
-            aria-pressed={hanya4s}
-            className={`rounded-lg border px-3 py-2 text-sm ${hanya4s
-              ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-900"
-              : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
-            Pengurus 4S
-          </button>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <select
+              aria-label="Filter jenis kelamin"
+              value={filterJk}
+              onChange={(e) => { setFilterJk(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-40"
+            >
+              <option value="">Laki & Perempuan</option>
+              <option value="L">Laki-laki</option>
+              <option value="P">Perempuan</option>
+            </select>
+            <select
+              aria-label="Filter status aktif"
+              value={filterAktif}
+              onChange={(e) => { setFilterAktif(e.target.value); setPage(1); }}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-36"
+            >
+              <option value="">Semua Status</option>
+              <option value="1">Aktif</option>
+              <option value="0">Tidak Aktif</option>
+            </select>
+          </div>
+        )}
+        {mode === "orang" && (
+          <div className="flex gap-2">
+            {([
+              ["Pengurus 4S", hanya4s, setHanya4s],
+              ["Mubaligh", hanyaMubaligh, setHanyaMubaligh],
+            ] as const).map(([label, nyala, ubah]) => (
+              <button
+                key={label}
+                onClick={() => { ubah(!nyala); setPage(1); }}
+                aria-pressed={nyala}
+                className={`rounded-lg border px-3 py-2 text-sm ${nyala
+                  ? "border-emerald-500 bg-emerald-50 font-semibold text-emerald-900"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         )}
         {mode === "keluarga" && (
           <button

@@ -102,6 +102,9 @@ class JamaahController extends Controller
         if ($request->filled('kategori_usia')) {
             $query->where('kategori_usia', $request->string('kategori_usia'));
         }
+        if ($request->filled('jenis_kelamin')) {
+            $query->where('jenis_kelamin', $request->string('jenis_kelamin'));
+        }
         if ($request->filled('aktif')) {
             $query->where('aktif', $request->boolean('aktif'));
         }
@@ -109,6 +112,9 @@ class JamaahController extends Controller
         // daftar pesertanya tidak kelihatan di mana pun sampai kegiatannya dibuat.
         if ($request->filled('pengurus_4s')) {
             $query->where('pengurus_4s', $request->boolean('pengurus_4s'));
+        }
+        if ($request->filled('status_mubaligh')) {
+            $query->where('status_mubaligh', $request->boolean('status_mubaligh'));
         }
         if ($request->filled('status_kk')) {
             $query->where('status_kk', $request->string('status_kk'));
