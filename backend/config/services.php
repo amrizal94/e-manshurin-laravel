@@ -38,6 +38,9 @@ return [
     'face' => [
         'url' => env('FACE_SERVICE_URL', 'http://127.0.0.1:5000'),
         'threshold' => env('FACE_MATCH_THRESHOLD', 0.40),
+        // Hanya untuk menolak foto yang jelas orang lain saat enroll. Lebih longgar dari
+        // ambang pencocokan di atas — alasannya di FaceController::enroll().
+        'enroll_threshold' => env('FACE_ENROLL_THRESHOLD', 0.25),
     ],
 
     'wa' => [

@@ -101,6 +101,33 @@ class FaceApiTest extends TestCase
         $this->assertSame(1, JamaahFaceDescriptor::count());
     }
 
+    /**
+     * Pose dan pencahayaan yang jauh berbeda menurunkan skor tanpa berarti orang lain.
+     * Di ambang kiosk (0.40) foto seperti ini tertolak dan petugas berhenti bekerja;
+     * ambang enroll yang lebih longgar meloloskannya.
+     */
+    public function test_enroll_meloloskan_foto_yang_skornya_di_antara_dua_ambang(): void
+    {
+        JamaahFaceDescriptor::create([
+            'jamaah_id' => $this->jamaah->id,
+            'descriptor' => $this->vektor(0),
+        ]);
+
+        $miring = array_fill(0, 512, 0.0);
+        $miring[0] = 0.33; // kemiripan 0.33: di bawah ambang kiosk 0.40, di atas ambang enroll 0.25
+        $miring[1] = sqrt(1 - 0.33 ** 2);
+
+        Http::fake(['*/extract' => Http::response(['descriptor' => $miring, 'confidence' => 0.95])]);
+
+        $this->actingAs($this->admin)
+            ->post("/api/jamaahs/{$this->jamaah->id}/face-enroll", [
+                'photo' => UploadedFile::fake()->image('pose-ekstrem.jpg'),
+            ])
+            ->assertCreated();
+
+        $this->assertSame(2, JamaahFaceDescriptor::count());
+    }
+
     /** Wajah yang sama tetap masuk walau posenya beda — skornya di atas ambang. */
     public function test_enroll_menerima_foto_kedua_dari_orang_yang_sama(): void
     {

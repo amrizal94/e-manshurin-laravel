@@ -61,11 +61,24 @@ class FaceController extends Controller
 
         // Enroll ratusan jamaah berturut-turut, satu foto nyasar ke kartu yang salah tidak
         // akan protes: rusaknya baru kelihatan di kiosk, saat absensi tercatat atas nama
-        // orang yang tidak hadir. Ambangnya sengaja sama dengan ambang pencocokan — kalau
-        // kiosk nanti tidak akan menganggap dua wajah ini satu orang, enroll juga tidak boleh.
+        // orang yang tidak hadir.
+        //
+        // Ambangnya lebih longgar daripada ambang kiosk, dan itu disengaja. Salah tolak di
+        // sini menghentikan pekerjaan petugas di tempat; yang lolos pun masih harus melewati
+        // ambang kiosk waktu absen. Diukur dari data produksi: 7 dari 140 jamaah punya
+        // pasangan foto sah di bawah 0.40, tinggal 3 di bawah 0.25.
         $terdaftar = JamaahFaceDescriptor::where('jamaah_id', $jamaah->id)->get();
-        if ($terdaftar->isNotEmpty() && $this->skorTerbaik($extracted['descriptor'], $terdaftar)['jamaah_id'] === null) {
-            abort(422, 'Wajah di foto ini berbeda dengan foto yang sudah tersimpan. Kalau justru foto lama yang salah, hapus dulu foto lamanya.');
+        if ($terdaftar->isNotEmpty()) {
+            $mirip = $terdaftar->max(
+                fn (JamaahFaceDescriptor $d) => $this->similarity($extracted['descriptor'], $d->descriptor)
+            );
+
+            if ($mirip < (float) config('services.face.enroll_threshold')) {
+                // Angkanya ikut disebut supaya petugas bisa menimbang sendiri: 2% jelas salah
+                // orang, 24% biasanya cuma pencahayaan atau sudut yang jauh berbeda.
+                abort(422, 'Wajah di foto ini jauh berbeda dengan foto yang sudah tersimpan (kemiripan '
+                    .round($mirip * 100).'%). Pastikan ini orang yang sama. Kalau justru foto lama yang salah, hapus dulu foto lamanya.');
+            }
         }
 
         $path = $request->file('photo')->store("jamaah/{$jamaah->id}", 'public');

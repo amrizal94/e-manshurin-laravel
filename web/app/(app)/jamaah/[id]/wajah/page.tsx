@@ -16,6 +16,25 @@ const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/ap
  */
 const MAKS_SISI = 1280;
 
+/** Batas kirim backend. File di atas ini tidak ada gunanya dicoba. */
+const MAKS_KIRIM = 5 * 1024 * 1024;
+
+/** Di atas segini pasti foto kamera, jadi pasti lebih lebar dari MAKS_SISI. */
+const PASTI_BESAR = 1024 * 1024;
+
+/**
+ * Pembacaan gambar di HP bisa menggantung tanpa pernah gagal. Tanpa batas ini tombolnya
+ * diam di "Memproses..." selamanya dan petugas tidak pernah tahu apa yang terjadi.
+ */
+function batasiWaktu<T>(janji: Promise<T>, detik: number): Promise<T> {
+  return Promise.race([
+    janji,
+    new Promise<T>((_, tolak) =>
+      setTimeout(() => tolak(new Error(`tidak selesai dalam ${detik} detik`)), detik * 1000)
+    ),
+  ]);
+}
+
 /**
  * Kecilkan di browser sebelum kirim. Foto HP 12 MP menembus batas 5 MB backend dan
  * membuat unggahan lewat sinyal masjid bertele-tele, padahal yang dibutuhkan cuma
@@ -23,7 +42,16 @@ const MAKS_SISI = 1280;
  */
 async function kecilkan(file: File): Promise<File> {
   try {
-    const bitmap = await createImageBitmap(file);
+    // Foto 50 MP butuh ~200 MB memori kalau dibuka utuh dulu, dan di HP itu menggantung
+    // atau mematikan tab diam-diam — tidak ada permintaan yang terkirim, tidak ada pesan
+    // apa pun. resizeWidth menyuruh browser membaca langsung pada ukuran kecil.
+    // Tingginya menyesuaikan sendiri, jadi fotonya tidak gepeng.
+    const bitmap = await batasiWaktu(
+      createImageBitmap(file, file.size > PASTI_BESAR
+        ? { resizeWidth: MAKS_SISI, resizeQuality: "high" }
+        : undefined),
+      20
+    );
     const skala = Math.min(1, MAKS_SISI / Math.max(bitmap.width, bitmap.height));
     if (skala === 1) {
       bitmap.close();
@@ -42,8 +70,12 @@ async function kecilkan(file: File): Promise<File> {
     return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
   } catch {
     // Format yang tidak bisa dibaca browser — HEIC mentah dari iPhone, misalnya.
-    // Kirim apa adanya, biar backend yang menolak dengan alasannya sendiri.
-    return file;
+    // Yang masih muat dikirim apa adanya, biar backend yang menjelaskan penolakannya.
+    if (file.size <= MAKS_KIRIM) return file;
+
+    throw new Error(
+      `tidak bisa dikecilkan di perangkat ini, dan ${(file.size / 1024 / 1024).toFixed(1)} MB terlalu besar untuk dikirim apa adanya`
+    );
   }
 }
 
@@ -54,7 +86,9 @@ export default function WajahPage() {
   useRoleGuard(["super_admin", "admin"]);
   const { id } = useParams<{ id: string }>();
   const [jamaah, setJamaah] = useState<Jamaah | null>(null);
-  const [pesan, setPesan] = useState("");
+  // Hasil per foto, bukan satu pesan. Dengan tiga foto sekaligus, satu baris pesan
+  // selalu berbohong tentang dua foto lainnya.
+  const [hasil, setHasil] = useState<{ nama: string; pesan: string; ok: boolean }[]>([]);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   // Tiap foto menunggu face-service (timeout 15 detik di backend). Tanpa angka,
@@ -100,36 +134,38 @@ export default function WajahPage() {
   }
 
   /**
-   * Satu per satu: backend menerima satu foto per request. Yang gagal tidak
-   * boleh menghapus jejak yang berhasil — wajah tak terdeteksi di satu foto
-   * itu biasa, dan petugas perlu tahu foto mana, bukan cuma bahwa ada yang
-   * gagal. Pesan sukses diambil dari respons terakhir karena backend yang
-   * menghitung total fotonya, bukan halaman ini.
+   * Satu per satu: backend menerima satu foto per request. Hasilnya dicatat per foto —
+   * wajah tak terdeteksi di satu foto itu biasa, dan petugas perlu tahu foto mana.
+   * Pengecilan ikut masuk ke dalam try: justru kegagalan sebelum terkirim yang selama
+   * ini hilang tanpa jejak, dan itu yang terbaca sebagai "tidak bisa upload".
    */
   async function kirim(fotos: File[]) {
     setError("");
-    setPesan("");
+    setHasil([]);
     setUploading(true);
 
-    const gagal: string[] = [];
-    let terakhir = "";
+    const catatan: { nama: string; pesan: string; ok: boolean }[] = [];
 
     for (const [i, asli] of fotos.entries()) {
       setProgres(fotos.length > 1 ? ` ${i + 1}/${fotos.length}` : "");
-      const foto = await kecilkan(asli);
-      const body = new FormData();
-      body.append("photo", foto, foto.name);
       try {
-        terakhir = (await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body })).message;
+        const foto = await kecilkan(asli);
+        const body = new FormData();
+        body.append("photo", foto, foto.name);
+        const res = await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body });
+        catatan.push({ nama: asli.name, pesan: res.message, ok: true });
       } catch (err) {
-        gagal.push(`${asli.name} — ${err instanceof Error ? err.message : "gagal unggah"}`);
+        catatan.push({
+          nama: asli.name,
+          pesan: err instanceof Error ? err.message : "gagal unggah",
+          ok: false,
+        });
       }
+      setHasil([...catatan]);
     }
 
     setProgres("");
     setUploading(false);
-    setPesan(terakhir);
-    setError(gagal.join(" · "));
     reload();
   }
 
@@ -157,7 +193,36 @@ export default function WajahPage() {
       </p>
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-      {pesan && <p className="rounded bg-emerald-50 p-2 text-sm text-emerald-700">{pesan}</p>}
+
+      {/* Tidak hilang sendiri: petugas sering baru melihat layar sesudah foto terakhir,
+          dan kalau pesannya sudah lewat, yang tersisa cuma kesan "tidak terjadi apa-apa". */}
+      {hasil.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-900">
+              {hasil.filter((h) => h.ok).length} foto tersimpan
+              {hasil.some((h) => !h.ok) && ` · ${hasil.filter((h) => !h.ok).length} gagal`}
+            </p>
+            <button
+              onClick={() => setHasil([])}
+              aria-label="Tutup hasil unggah"
+              className="shrink-0 rounded px-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {hasil.map((h, i) => (
+              <li key={i} className={`flex gap-2 text-sm ${h.ok ? "text-gray-600" : "text-red-700"}`}>
+                <span aria-hidden="true">{h.ok ? "✓" : "✕"}</span>
+                <span className="min-w-0 break-words">
+                  <span className="font-medium">{h.nama}</span> — {h.pesan}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-block cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
