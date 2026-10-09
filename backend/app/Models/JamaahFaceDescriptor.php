@@ -20,4 +20,24 @@ class JamaahFaceDescriptor extends Model
     {
         return $this->belongsTo(Jamaah::class);
     }
+
+    /**
+     * Cosine similarity — embedding sudah L2-normalized, jadi cukup dot product.
+     *
+     * Di model, bukan di controller: pencocokan kiosk, penjaga enroll, dan pemeriksa
+     * foto janggal harus memakai rumus yang sama persis, kalau tidak ambang yang
+     * tertulis di config berarti tiga hal berbeda.
+     *
+     * @param  list<float>  $a
+     * @param  list<float>  $b
+     */
+    public static function similarity(array $a, array $b): float
+    {
+        $dot = 0.0;
+        foreach ($a as $i => $v) {
+            $dot += $v * ($b[$i] ?? 0.0);
+        }
+
+        return $dot;
+    }
 }

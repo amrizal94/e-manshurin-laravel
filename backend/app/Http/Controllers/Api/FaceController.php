@@ -8,6 +8,7 @@ use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
 use App\Models\Kegiatan;
 use App\Models\User;
+use App\Support\FotoWajahJanggal;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,15 +41,18 @@ class FaceController extends Controller
         return $json;
     }
 
-    /** Cosine similarity — embedding sudah L2-normalized, jadi cukup dot product. */
-    private function similarity(array $a, array $b): float
+    /**
+     * Jamaah yang foto-fotonya tidak saling mengenali — kemungkinan ada foto orang lain
+     * yang terlanjur masuk sebelum penjaga di enroll() ada. Diperiksa manusia, bukan
+     * dibereskan otomatis.
+     */
+    public function janggal(Request $request): JsonResponse
     {
-        $dot = 0.0;
-        foreach ($a as $i => $v) {
-            $dot += $v * ($b[$i] ?? 0.0);
-        }
-
-        return $dot;
+        return response()->json([
+            'success' => true,
+            'message' => 'OK',
+            'data' => FotoWajahJanggal::untuk($request->user()),
+        ]);
     }
 
     /** Enroll wajah jamaah: simpan foto + descriptor. Minimal 3 foto sesuai rencana. */
@@ -70,7 +74,7 @@ class FaceController extends Controller
         $terdaftar = JamaahFaceDescriptor::where('jamaah_id', $jamaah->id)->get();
         if ($terdaftar->isNotEmpty()) {
             $mirip = $terdaftar->max(
-                fn (JamaahFaceDescriptor $d) => $this->similarity($extracted['descriptor'], $d->descriptor)
+                fn (JamaahFaceDescriptor $d) => JamaahFaceDescriptor::similarity($extracted['descriptor'], $d->descriptor)
             );
 
             if ($mirip < (float) config('services.face.enroll_threshold')) {
@@ -202,7 +206,7 @@ class FaceController extends Controller
     {
         $best = ['jamaah_id' => null, 'score' => 0.0];
         foreach ($descriptors as $d) {
-            $score = $this->similarity($probe, $d->descriptor);
+            $score = JamaahFaceDescriptor::similarity($probe, $d->descriptor);
             if ($score > $best['score']) {
                 $best = ['jamaah_id' => $d->jamaah_id, 'score' => $score];
             }

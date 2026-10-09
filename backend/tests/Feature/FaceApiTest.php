@@ -128,6 +128,42 @@ class FaceApiTest extends TestCase
         $this->assertSame(2, JamaahFaceDescriptor::count());
     }
 
+    /**
+     * Daftar periksa: yang foto-fotonya saling mengenali tidak boleh ikut muncul, karena
+     * daftar yang penuh nama aman akan berhenti dibaca orang.
+     */
+    public function test_daftar_foto_janggal_hanya_memuat_yang_di_bawah_ambang(): void
+    {
+        $buat = function (string $nama, array $vektorPosisi) {
+            $jamaah = Jamaah::create([
+                'kelompok_id' => $this->kelompok->id,
+                'nama_lengkap' => $nama,
+                'jenis_kelamin' => 'L',
+                'kategori_usia' => 'remaja',
+            ]);
+
+            foreach ($vektorPosisi as $posisi) {
+                JamaahFaceDescriptor::create([
+                    'jamaah_id' => $jamaah->id,
+                    'descriptor' => $this->vektor($posisi),
+                ]);
+            }
+
+            return $jamaah;
+        };
+
+        $tercampur = $buat('Fotonya Tercampur', [0, 1]); // saling tegak lurus: skor 0
+        $buat('Fotonya Konsisten', [0, 0]);              // dua foto sama: skor 1
+        $buat('Baru Satu Foto', [0]);                    // tidak ada pasangan untuk dibandingkan
+
+        $data = $this->actingAs($this->admin)->getJson('/api/jamaahs/foto-janggal')
+            ->assertOk()->json('data');
+
+        $this->assertSame([$tercampur->id], array_column($data, 'jamaah_id'));
+        $this->assertEquals(0.0, $data[0]['skor']); // JSON memulangkan 0.0 sebagai int
+        $this->assertSame(2, $data[0]['jumlah_foto']);
+    }
+
     /** Wajah yang sama tetap masuk walau posenya beda — skornya di atas ambang. */
     public function test_enroll_menerima_foto_kedua_dari_orang_yang_sama(): void
     {

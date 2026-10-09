@@ -8,8 +8,10 @@ use App\Models\Desa;
 use App\Models\Jamaah;
 use App\Models\Kegiatan;
 use App\Models\Kelompok;
+use App\Support\FotoWajahJanggal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
@@ -68,6 +70,15 @@ class DashboardController extends Controller
                 // Pendampingnya wajib. Tanpa ini "21 KK untuk 202 jamaah" terbaca sebagai
                 // kenyataan, padahal itu pekerjaan yang belum selesai.
                 'belum_masuk_keluarga' => (clone $jamaah)->where('aktif', true)->belumMasukKeluarga()->count(),
+                // Dicache: ini satu-satunya angka di sini yang harus mendekripsi seluruh
+                // descriptor, dan dashboard dibuka jauh lebih sering daripada foto berubah.
+                // Telat sepuluh menit tidak ada ruginya untuk pekerjaan yang sudah menunggu
+                // berminggu-minggu.
+                'foto_wajah_janggal' => Cache::remember(
+                    "foto-janggal:{$user->id}",
+                    now()->addMinutes(10),
+                    fn () => FotoWajahJanggal::untuk($user)->count()
+                ),
                 'jumlah_daerah' => $user->daerah_id || $user->desa_id || $user->kelompok_id ? null : Daerah::count(),
                 'jumlah_desa' => $jumlahDesa,
                 'jumlah_kelompok' => $jumlahKelompok,

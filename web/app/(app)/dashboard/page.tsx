@@ -13,6 +13,7 @@ interface DashboardData {
   total_perempuan: number;
   total_kk: number;
   belum_masuk_keluarga: number;
+  foto_wajah_janggal: number;
   jumlah_daerah: number | null;
   jumlah_desa: number | null;
   jumlah_kelompok: number | null;
@@ -125,6 +126,10 @@ export default function DashboardPage() {
         <StatTugas label="Belum Masuk Keluarga" value={data.belum_masuk_keluarga}
           href="/jamaah?tanpa_keluarga=1" />
         <StatTile label="Mubaligh" value={data.total_mubaligh} href="/jamaah?aktif=1&status_mubaligh=1" />
+        {/* Absensi yang salah orang tidak pernah melapor sendiri — kalau tidak ditagih
+            di sini, tidak ada yang akan membukanya. */}
+        <StatTugas label="Foto Wajah Perlu Dicek" value={data.foto_wajah_janggal}
+          href="/jamaah/foto-janggal" />
         <StatTile label="Kegiatan Bulan Ini" value={data.kegiatan_bulan_ini} href={`/kegiatan?${bulanIni()}`} />
         <StatTile label="Jamaah Tidak Aktif" value={data.total_tidak_aktif} href="/jamaah?aktif=0" />
       </div>
