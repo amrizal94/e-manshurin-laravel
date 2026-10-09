@@ -11,6 +11,7 @@ use App\Models\Kelompok;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -27,6 +28,12 @@ class WaApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Dibekukan di siang hari WIB. Test ini membuat kegiatan dengan now() yang UTC,
+        // sedangkan WaController sengaja mencari tanggal lokal — tanpa pembekuan, seluruh
+        // berkas ini lulus di siang hari dan gagal setiap kali dijalankan antara tengah
+        // malam dan pukul tujuh pagi WIB, saat tanggal UTC masih kemarin.
+        Carbon::setTestNow(Carbon::parse('2026-07-21 05:00:00', 'UTC'));
 
         config([
             'services.wa.device_api_key' => self::SECRET,
