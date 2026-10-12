@@ -44,7 +44,17 @@ class RekapController extends Controller
         $pesertaPerKegiatan = [];
         $jamaahById = collect();
         foreach ($kegiatans as $kegiatan) {
-            $peserta = $kegiatan->pesertaQuery()->with('kelompok:id,nama')->get();
+            // pesertaQuery() menyaring menurut sasaran kegiatannya, bukan menurut siapa yang
+            // melihat: pengajian desa pesertanya sedesa, dan tanpa ini akun kelompok ikut
+            // membaca nama kelompok tetangga di rekapnya sendiri. Kolom pengajian desanya
+            // tetap ada — yang disaring barisnya, bukan kegiatannya.
+            //
+            // Daftar absensi per kegiatan sengaja tidak disamakan: di sana petugas memang
+            // perlu mencentang siapa pun yang datang. Laporan dan alat kerja beda keperluan.
+            $peserta = $kegiatan->pesertaQuery()
+                ->visibleTo($request->user())
+                ->with('kelompok:id,nama')
+                ->get();
             $pesertaPerKegiatan[$kegiatan->id] = $peserta->pluck('id')->flip();
             $jamaahById = $jamaahById->union($peserta->keyBy('id'));
         }

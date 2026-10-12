@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, unduh } from "@/lib/api";
 import { KATEGORI_USIA, STATUS_KK } from "@/lib/labels";
 import { Pagination } from "@/components/Pagination";
 import { useRoleGuard } from "@/lib/useRoleGuard";
@@ -160,6 +160,7 @@ export default function JamaahPage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [mengunduh, setMengunduh] = useState(false);
   const [form, setForm] = useState<typeof KOSONG | null>(null);
   const [tersimpan, setTersimpan] = useState("");
   const namaRef = useRef<HTMLInputElement>(null);
@@ -173,13 +174,32 @@ export default function JamaahPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const reload = useCallback(() => {
-    const params = new URLSearchParams({ page: String(page) });
+  /**
+   * Saringan tampilan Per Orang, dipakai daftar dan tombol unduh. Satu sumber supaya isi
+   * berkas selalu sama dengan yang sedang dilihat di layar.
+   */
+  const paramOrang = useCallback(() => {
+    const params = new URLSearchParams();
     if (searchDebounced) params.set("search", searchDebounced);
     if (filterKelompok) params.set("kelompok_id", filterKelompok);
+    if (filterKategori) params.set("kategori_usia", filterKategori);
+    if (hanya4s) params.set("pengurus_4s", "1");
+    if (filterJk) params.set("jenis_kelamin", filterJk);
+    if (filterAktif) params.set("aktif", filterAktif);
+    if (hanyaMubaligh) params.set("status_mubaligh", "1");
+    if (keluarga) params.set("keluarga_id", String(keluarga.id));
+
+    return params;
+  }, [searchDebounced, filterKelompok, filterKategori, hanya4s, filterJk, filterAktif,
+    hanyaMubaligh, keluarga]);
+
+  const reload = useCallback(() => {
     Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
 
     if (mode === "keluarga") {
+      const params = new URLSearchParams({ page: String(page) });
+      if (searchDebounced) params.set("search", searchDebounced);
+      if (filterKelompok) params.set("kelompok_id", filterKelompok);
       if (tanpaKeluarga) params.set("tanpa_keluarga", "1");
       api<{ data: Keluarga[]; last_page: number; total: number; belum_masuk_keluarga: number }>(`/jamaahs/keluarga?${params}`)
         .then((res) => {
@@ -195,12 +215,8 @@ export default function JamaahPage() {
       return;
     }
 
-    if (filterKategori) params.set("kategori_usia", filterKategori);
-    if (hanya4s) params.set("pengurus_4s", "1");
-    if (filterJk) params.set("jenis_kelamin", filterJk);
-    if (filterAktif) params.set("aktif", filterAktif);
-    if (hanyaMubaligh) params.set("status_mubaligh", "1");
-    if (keluarga) params.set("keluarga_id", String(keluarga.id));
+    const params = paramOrang();
+    params.set("page", String(page));
     api<{ data: Jamaah[]; last_page: number; total: number }>(`/jamaahs?${params}`)
       .then((res) => {
         setRows(res.data.data);
@@ -212,8 +228,7 @@ export default function JamaahPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, filterKategori, hanya4s,
-    filterJk, filterAktif, hanyaMubaligh, keluarga, page]);
+  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, paramOrang, page]);
 
   /**
    * Kepala keluarga diambil per kelompok yang sedang dipilih di form, bukan sekaligus.
@@ -297,6 +312,19 @@ export default function JamaahPage() {
       reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyambungkan");
+    }
+  }
+
+  /** Saringan yang sedang aktif, bukan halaman yang sedang dibuka: yang diunduh semuanya. */
+  async function unduhExcel() {
+    setError("");
+    setMengunduh(true);
+    try {
+      await unduh(`/jamaahs/ekspor?${paramOrang()}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengunduh");
+    } finally {
+      setMengunduh(false);
     }
   }
 
@@ -460,6 +488,15 @@ export default function JamaahPage() {
             href="/jamaah/impor"
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >Impor CSV</Link>
+          {/* Hanya di Per Orang: tampilan Per Keluarga punya saringan sendiri, dan tombol
+              yang mengunduh sesuatu yang berbeda dengan layar lebih buruk daripada tidak ada. */}
+          {mode === "orang" && (
+            <button
+              onClick={unduhExcel}
+              disabled={mengunduh}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >{mengunduh ? "Menyiapkan..." : `Unduh Excel (${total})`}</button>
+          )}
           <button
             onClick={() => buka()}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"

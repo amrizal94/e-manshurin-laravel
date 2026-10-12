@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/jamaahs/keluarga', [JamaahController::class, 'keluarga']);
         // Sebelum apiResource: kalau sesudahnya, "foto-janggal" dibaca sebagai {jamaah}.
         Route::get('/jamaahs/foto-janggal', [FaceController::class, 'janggal']);
+        Route::get('/jamaahs/ekspor', [JamaahController::class, 'ekspor']);
         Route::post('/jamaahs/sambung-keluarga', [JamaahController::class, 'sambungKeluarga']);
         Route::apiResource('jamaahs', JamaahController::class);
         Route::post('/jamaahs/{jamaah}/photos', [JamaahController::class, 'storePhoto']);

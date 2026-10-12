@@ -7,11 +7,20 @@ use App\Http\Controllers\Controller;
 use App\Models\Jamaah;
 use App\Models\JamaahFaceDescriptor;
 use App\Models\JamaahPhoto;
+use App\Models\Kelompok;
 use App\Models\User;
 use App\Support\DaftarKeluarga;
+use App\Support\ImporJamaah;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Common\Entity\Style\Style;
+use OpenSpout\Writer\XLSX\Options as XlsxOptions;
+use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class JamaahController extends Controller
 {
@@ -96,6 +105,98 @@ class JamaahController extends Controller
             ->withCount('photos')
             ->orderBy('nama_lengkap');
 
+        return response()->json([
+            'success' => true,
+            'message' => 'OK',
+            'data' => $this->saring($query, $request)->paginate($request->integer('per_page', 25)),
+        ]);
+    }
+
+    /**
+     * Daftar yang sedang dilihat, sebagai berkas Excel.
+     *
+     * Kolomnya persis template impor, dan itu yang membuatnya berguna: unduh, rapikan
+     * massal di Excel, impor balik. Format kedua yang cuma bisa dibaca mata akan menuntut
+     * pekerjaan manual yang sama lagi.
+     *
+     * Yang tidak aktif ikut terbawa, dengan kolom aktif terisi "tidak" — berkas ini juga
+     * jalan masuk, dan menghilangkan mereka diam-diam dari daftar yang akan diimpor balik
+     * sama saja dengan menghapus mereka.
+     */
+    public function ekspor(Request $request): StreamedResponse
+    {
+        $kolom = [...ImporJamaah::WAJIB, ...ImporJamaah::OPSIONAL];
+
+        $query = Jamaah::visibleTo($request->user())
+            ->with('kelompok:id,nama,desa_id', 'kelompok.desa:id,nama')
+            ->orderBy('nama_lengkap');
+
+        $ya = fn (?bool $nilai) => $nilai ? 'ya' : 'tidak';
+
+        $baris = fn (Jamaah $j) => [
+            'desa' => $j->kelompok?->desa?->nama,
+            'kelompok' => $j->kelompok?->nama,
+            'nama_lengkap' => $j->nama_lengkap,
+            'jenis_kelamin' => $j->jenis_kelamin,
+            'kategori_usia' => $j->kategori_usia,
+            'nama_panggilan' => $j->nama_panggilan,
+            'tempat_lahir' => $j->tempat_lahir,
+            'tanggal_lahir' => $j->tanggal_lahir?->toDateString(),
+            'alamat' => $j->alamat,
+            'no_hp' => $j->no_hp,
+            'pekerjaan' => $j->pekerjaan,
+            'status_kk' => $j->status_kk,
+            'kode_keluarga' => $j->kode_keluarga,
+            'status_mubaligh' => $ya($j->status_mubaligh),
+            'pengurus_4s' => $ya($j->pengurus_4s),
+            'aktif' => $ya($j->aktif),
+            'keterangan_tidak_aktif' => $j->keterangan_tidak_aktif,
+        ];
+
+        $opsi = new XlsxOptions;
+        $opsi->setColumnWidthForRange(22, 1, count($kolom));
+
+        return response()->streamDownload(function () use ($query, $request, $kolom, $baris, $opsi) {
+            $writer = new XlsxWriter($opsi);
+            $writer->openToFile('php://output');
+            $writer->addRow(Row::fromValues($kolom, (new Style)->setFontBold()));
+
+            // Dicicil per seribu: satu wilayah besar tidak boleh menahan seluruh jamaah
+            // di memori cuma untuk ditulis berurutan ke berkas.
+            foreach ($this->saring($query, $request)->lazy(1000) as $jamaah) {
+                $writer->addRow(Row::fromValues(array_values($baris($jamaah))));
+            }
+
+            $writer->close();
+        }, $this->namaBerkas($request), ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    }
+
+    /** Nama berkas ikut saringannya, supaya beberapa kali unduh tidak saling tertukar. */
+    private function namaBerkas(Request $request): string
+    {
+        $bagian = ['jamaah'];
+
+        if ($request->filled('kategori_usia')) {
+            $bagian[] = (string) $request->string('kategori_usia');
+        }
+        if ($request->filled('jenis_kelamin')) {
+            $bagian[] = $request->string('jenis_kelamin') === 'L' ? 'laki-laki' : 'perempuan';
+        }
+        if ($request->filled('kelompok_id')) {
+            $bagian[] = Str::slug((string) Kelompok::whereKey($request->integer('kelompok_id'))->value('nama'));
+        }
+
+        return implode('-', array_filter($bagian)).'.xlsx';
+    }
+
+    /**
+     * Saringan daftar jamaah, dipakai bersama oleh daftar di layar dan berkas unduhannya.
+     * Satu tempat supaya isi berkas tidak pernah berbeda dengan yang sedang dilihat —
+     * saringan yang ditambahkan di salah satunya saja adalah cara paling gampang
+     * membuat unduhan diam-diam berbohong.
+     */
+    private function saring(Builder $query, Request $request): Builder
+    {
         if ($request->filled('kelompok_id')) {
             $query->where('kelompok_id', $request->integer('kelompok_id'));
         }
@@ -136,11 +237,7 @@ class JamaahController extends Controller
             });
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'OK',
-            'data' => $query->paginate($request->integer('per_page', 25)),
-        ]);
+        return $query;
     }
 
     /**

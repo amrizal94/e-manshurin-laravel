@@ -22,7 +22,7 @@ function isKioskPath(pathname: string): boolean {
  * Unduh berkas dari endpoint yang butuh token. `<a href>` biasa tidak bisa: tokennya di
  * localStorage, bukan cookie, jadi permintaannya sampai tanpa Authorization.
  */
-export async function unduh(path: string, namaFile: string): Promise<void> {
+export async function unduh(path: string, namaFile?: string): Promise<void> {
   const token = localStorage.getItem("token");
   const res = await fetch(`${BASE}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -30,10 +30,15 @@ export async function unduh(path: string, namaFile: string): Promise<void> {
 
   if (!res.ok) throw new ApiError(`Gagal mengunduh (HTTP ${res.status})`, res.status);
 
+  // Nama dari server kalau ada: yang tahu isi berkasnya server, dan nama kedua di sisi
+  // klien pasti lambat laun berbeda dengan isinya. Di dev beda origin, header ini tidak
+  // terbaca — makanya nama cadangannya tetap dipakai.
+  const dariServer = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") ?? "")?.[1];
+
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
   a.href = url;
-  a.download = namaFile;
+  a.download = dariServer ?? namaFile ?? "unduhan";
   a.click();
   URL.revokeObjectURL(url);
 }

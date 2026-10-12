@@ -308,6 +308,41 @@ class AbsensiApiTest extends TestCase
         $this->assertSame('izin', Absensi::first()->status);
     }
 
+    /**
+     * Pengajian desa pesertanya sedesa, dan kegiatan itu terlihat juga oleh akun kelompok.
+     * Rekapnya tetap laporan kelompok sendiri: nama kelompok tetangga tidak boleh ikut
+     * terbaca, walau kolom pengajian desanya tetap ada.
+     */
+    public function test_rekap_akun_kelompok_tidak_memuat_jamaah_kelompok_lain(): void
+    {
+        $tetangga = Kelompok::create([
+            'desa_id' => $this->kelompok->desa_id,
+            'nama' => 'Kelompok 2',
+        ]);
+        Jamaah::create([
+            'kelompok_id' => $tetangga->id,
+            'nama_lengkap' => 'Remaja Tetangga',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'remaja',
+        ]);
+
+        $kegiatanDesa = Kegiatan::create([
+            'nama' => 'Pengajian Remaja Sedesa',
+            'jenis_pengajian' => 'remaja',
+            'desa_id' => $this->kelompok->desa_id,
+            'tanggal' => '2026-07-21',
+            'created_by' => $this->petugas->id,
+        ]);
+
+        $data = $this->actingAs($this->petugas)
+            ->getJson('/api/rekap?dari=2026-07-01&sampai=2026-07-31')
+            ->assertOk()->json('data');
+
+        $this->assertSame(['Remaja Satu'], array_column(array_column($data['rows'], 'jamaah'), 'nama_lengkap'));
+        // Kegiatannya sendiri tetap muncul: yang disaring barisnya, bukan kolomnya.
+        $this->assertContains($kegiatanDesa->id, array_column($data['kegiatans'], 'id'));
+    }
+
     public function test_rekap_alpha_tiga_kali_berturut_flag(): void
     {
         foreach (['2026-07-01', '2026-07-08', '2026-07-15'] as $tanggal) {

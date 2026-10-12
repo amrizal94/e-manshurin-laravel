@@ -282,6 +282,59 @@ class JamaahApiTest extends TestCase
         ]);
     }
 
+    /**
+     * Berkas unduhan dan daftar di layar memakai saringan yang sama. Kalau suatu saat
+     * saringan baru ditambahkan di salah satunya saja, di sinilah ketahuannya — bukan
+     * dari petugas yang mengira sudah mengunduh caberawit padahal isinya semua orang.
+     */
+    public function test_ekspor_berisi_orang_yang_sama_dengan_daftar(): void
+    {
+        $this->jamaah('Anak Satu', ['kategori_usia' => 'caberawit']);
+        $this->jamaah('Anak Dua', ['kategori_usia' => 'caberawit', 'jenis_kelamin' => 'P']);
+        $this->jamaah('Orang Tua');
+        $this->jamaah('Anak Pindah', ['kategori_usia' => 'caberawit', 'aktif' => false]);
+
+        $saringan = 'kategori_usia=caberawit';
+
+        $daftar = collect($this->actingAs($this->admin)->getJson("/api/jamaahs?{$saringan}")
+            ->assertOk()->json('data.data'))->pluck('nama_lengkap')->sort()->values()->all();
+
+        $berkas = $this->actingAs($this->admin)->get("/api/jamaahs/ekspor?{$saringan}")
+            ->assertOk()
+            ->assertDownload('jamaah-caberawit.xlsx')
+            ->streamedContent();
+
+        // Isi xlsx itu zip; nama tidak perlu dibongkar dari XML-nya, cukup dipastikan
+        // ada di dalamnya dan yang di luar saringan tidak ikut.
+        $teks = $this->bacaXlsx($berkas);
+
+        $this->assertSame(['Anak Dua', 'Anak Pindah', 'Anak Satu'], $daftar);
+        foreach ($daftar as $nama) {
+            $this->assertStringContainsString($nama, $teks);
+        }
+        $this->assertStringNotContainsString('Orang Tua', $teks);
+        // Yang tidak aktif ikut, dan ketahuan statusnya — berkas ini juga jalan masuk impor.
+        $this->assertStringContainsString('tidak', $teks);
+    }
+
+    /** Ambil seluruh teks dari xlsx tanpa membongkar strukturnya. */
+    private function bacaXlsx(string $isi): string
+    {
+        $berkas = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($berkas, $isi);
+
+        $zip = new \ZipArchive;
+        $zip->open($berkas);
+        $teks = '';
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $teks .= $zip->getFromIndex($i);
+        }
+        $zip->close();
+        unlink($berkas);
+
+        return $teks;
+    }
+
     public function test_filter_pengurus_4s(): void
     {
         $this->jamaah('Pengurus', ['pengurus_4s' => true]);
