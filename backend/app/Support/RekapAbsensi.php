@@ -27,6 +27,25 @@ class RekapAbsensi
         'menikah', 'janda', 'duda', 'usman', 'remaja', 'praremaja', 'caberawit', 'paud_tk',
     ];
 
+    /**
+     * Jenis pengajian yang benar-benar ada kegiatannya di rentang itu, urut tanggal
+     * pertamanya. Dipakai berkas Excel untuk memecah satu sheet per jenis.
+     *
+     * @return list<string>
+     */
+    public static function jenisDalamRentang(User $actor, string $dari, string $sampai, ?string $hanya = null): array
+    {
+        return Kegiatan::visibleTo($actor)
+            ->whereDate('tanggal', '>=', $dari)
+            ->whereDate('tanggal', '<=', $sampai)
+            ->when($hanya, fn ($q, $jenis) => $q->where('jenis_pengajian', $jenis))
+            ->orderBy('tanggal')
+            ->pluck('jenis_pengajian')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     /** @var Collection<int, Kegiatan> */
     public Collection $kegiatans;
 

@@ -380,12 +380,16 @@ class AbsensiApiTest extends TestCase
         $this->assertSame(['hadir' => 1, 'izin' => 0, 'alpha' => 0], $data['rows'][1]['jumlah']);
     }
 
-    /** Berkas Excel memakai hitungan yang sama dengan layar, dan statusnya disingkat. */
-    public function test_ekspor_rekap_berisi_singkatan_dan_jumlah(): void
+    /**
+     * Satu sheet per jenis pengajian, dan judul kolomnya tinggal tanggal — jenisnya sudah
+     * jadi nama sheet, menuliskannya lagi di tiap kolom cuma memakan lebar.
+     */
+    public function test_ekspor_rekap_satu_sheet_per_jenis(): void
     {
-        $kegiatan = $this->buatKegiatan('umum');
+        $umum = $this->buatKegiatan('umum');
+        $this->buatKegiatan('caberawit', '2026-07-22');
         Absensi::create([
-            'kegiatan_id' => $kegiatan->id,
+            'kegiatan_id' => $umum->id,
             'jamaah_id' => $this->remaja->id,
             'status' => 'izin',
             'metode' => 'manual',
@@ -400,8 +404,12 @@ class AbsensiApiTest extends TestCase
         $teks = $this->bacaXlsx($isi);
 
         $this->assertStringContainsString('Remaja Satu', $teks);
-        // Judul kolom dipendekkan: tanggal plus jenis, bukan nama kegiatan yang panjang.
-        $this->assertStringContainsString('21/07 Umum', $teks);
+        $this->assertStringContainsString('Anak Caberawit', $teks);
+        // Nama sheet memikul jenisnya; kolomnya cuma tanggal.
+        $this->assertStringContainsString('name="Umum"', $teks);
+        $this->assertStringContainsString('name="Caberawit"', $teks);
+        $this->assertStringContainsString('21/07', $teks);
+        $this->assertStringNotContainsString('21/07 Umum', $teks);
         $this->assertStringNotContainsString('Pengajian umum', $teks);
     }
 

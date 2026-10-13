@@ -8,6 +8,7 @@ use App\Support\Label;
 use App\Support\RekapAbsensi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Entity\SheetView;
@@ -37,47 +38,58 @@ class RekapController extends Controller
         ]);
     }
 
+    /**
+     * Satu sheet per jenis pengajian.
+     *
+     * Kalau semua kolom bertuliskan "Caberawit", kata itu bukan milik kolomnya — itu milik
+     * seluruh lembarnya. Dinaikkan jadi nama sheet, judul kolomnya tinggal tanggal, dan
+     * tiap lembar cuma memuat orang yang memang peserta jenis pengajian itu. Sel kosong
+     * untuk yang bukan pesertanya hilang dengan sendirinya, dan itu yang paling terasa
+     * waktu dicetak.
+     */
     public function ekspor(Request $request): StreamedResponse
     {
-        $rekap = $this->rekap($request);
-
-        $judul = [
-            'Nama', 'Kelompok', 'Kategori',
-            ...$rekap->kegiatans->map(fn (Kegiatan $k) => $this->judulKolom($k)),
-            'H', 'I', 'A', 'Perlu Perhatian',
-        ];
+        $data = $this->validasi($request);
+        $semuaJenis = RekapAbsensi::jenisDalamRentang(
+            $request->user(), $data['dari'], $data['sampai'], $data['jenis_pengajian'] ?? null
+        );
 
         $opsi = new XlsxOptions;
-        $opsi->setColumnWidth(28, 1);                              // nama
-        $opsi->setColumnWidthForRange(18, 2, 3);                   // kelompok, kategori
-        $opsi->setColumnWidthForRange(11, 4, count($judul));       // kolom kegiatan + jumlah
+        $opsi->setColumnWidth(28, 1);         // nama
+        $opsi->setColumnWidthForRange(18, 2, 3); // kelompok, kategori
+        // Lebar kolom berlaku untuk seluruh berkas, sementara tiap sheet beda jumlah
+        // kolomnya. Disetel sampai kolom ke-60 sekalian — kolom yang tidak terpakai
+        // tidak merugikan siapa pun.
+        $opsi->setColumnWidthForRange(11, 4, 60);
         // Kolomnya banyak dan cuma selebar satu huruf: mendatar, dan dipaksa muat satu
         // halaman ke samping supaya tidak ada tanggal yang terlempar ke lembar kedua.
         $opsi->setPageSetup(new PageSetup(PageOrientation::LANDSCAPE, PaperSize::A4, fitToWidth: 1));
 
-        return response()->streamDownload(function () use ($rekap, $judul, $opsi) {
+        $actor = $request->user();
+
+        return response()->streamDownload(function () use ($actor, $data, $semuaJenis, $opsi) {
             $writer = new XlsxWriter($opsi);
             $writer->openToFile('php://output');
 
-            // Judul membeku: di gulungan kelima tidak ada lagi yang ingat kolom ini tanggal berapa.
-            $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2)->setFreezeColumn('B'));
+            // Rentang tanpa kegiatan sama sekali: tetap terbitkan satu lembar berisi judul,
+            // supaya yang membuka tahu berkasnya memang kosong, bukan gagal diunduh.
+            if ($semuaJenis === []) {
+                $this->tulisSheet($writer, 'Rekap', null);
+                $writer->close();
 
-            $writer->addRow(Row::fromValues($judul, (new Style)->setFontBold()));
+                return;
+            }
 
-            foreach ($rekap->rows as $baris) {
-                $writer->addRow(Row::fromValues([
-                    $baris['jamaah']['nama_lengkap'],
-                    $baris['jamaah']['kelompok'] ?? '',
-                    Label::kategoriUsia($baris['jamaah']['kategori_usia']),
-                    // Sel kosong berarti bukan peserta kegiatan itu, bukan berarti tidak hadir.
-                    ...$rekap->kegiatans->map(
-                        fn (Kegiatan $k) => self::SINGKAT[$baris['statuses'][$k->id] ?? ''] ?? ''
-                    ),
-                    $baris['jumlah']['hadir'],
-                    $baris['jumlah']['izin'],
-                    $baris['jumlah']['alpha'],
-                    $baris['perlu_perhatian'] ? 'Ya' : '',
-                ]));
+            foreach ($semuaJenis as $urutan => $jenis) {
+                if ($urutan > 0) {
+                    $writer->addNewSheetAndMakeItCurrent();
+                }
+
+                $this->tulisSheet(
+                    $writer,
+                    Label::jenisPengajian($jenis),
+                    new RekapAbsensi($actor, $data['dari'], $data['sampai'], $jenis)
+                );
             }
 
             $writer->close();
@@ -86,13 +98,49 @@ class RekapController extends Controller
         ]);
     }
 
-    private function rekap(Request $request): RekapAbsensi
+    private function tulisSheet(XlsxWriter $writer, string $nama, ?RekapAbsensi $rekap): void
     {
-        $data = $request->validate([
+        $kegiatans = $rekap?->kegiatans ?? collect();
+
+        $writer->getCurrentSheet()->setName($nama);
+        // Judul membeku: di gulungan kelima tidak ada lagi yang ingat kolom ini tanggal berapa.
+        $writer->getCurrentSheet()->setSheetView((new SheetView)->setFreezeRow(2)->setFreezeColumn('B'));
+
+        $writer->addRow(Row::fromValues([
+            'Nama', 'Kelompok', 'Kategori',
+            ...$kegiatans->map(fn (Kegiatan $k) => $this->judulKolom($k, $kegiatans)),
+            'H', 'I', 'A', 'Perlu Perhatian',
+        ], (new Style)->setFontBold()));
+
+        foreach ($rekap?->rows ?? collect() as $baris) {
+            $writer->addRow(Row::fromValues([
+                $baris['jamaah']['nama_lengkap'],
+                $baris['jamaah']['kelompok'] ?? '',
+                Label::kategoriUsia($baris['jamaah']['kategori_usia']),
+                // Sel kosong berarti bukan peserta kegiatan itu, bukan berarti tidak hadir.
+                ...$kegiatans->map(
+                    fn (Kegiatan $k) => self::SINGKAT[$baris['statuses'][$k->id] ?? ''] ?? ''
+                ),
+                $baris['jumlah']['hadir'],
+                $baris['jumlah']['izin'],
+                $baris['jumlah']['alpha'],
+                $baris['perlu_perhatian'] ? 'Ya' : '',
+            ]));
+        }
+    }
+
+    private function validasi(Request $request): array
+    {
+        return $request->validate([
             'dari' => ['required', 'date'],
             'sampai' => ['required', 'date', 'after_or_equal:dari'],
             'jenis_pengajian' => ['nullable', 'in:'.implode(',', array_keys(Kegiatan::KATEGORI_MAP))],
         ]);
+    }
+
+    private function rekap(Request $request): RekapAbsensi
+    {
+        $data = $this->validasi($request);
 
         return new RekapAbsensi(
             $request->user(),
@@ -103,16 +151,25 @@ class RekapController extends Controller
     }
 
     /**
-     * Tanggal pendek plus jenis pengajiannya.
+     * Tanggalnya saja — jenisnya sudah jadi nama sheet, dan menuliskannya lagi di tiap
+     * kolom cuma memakan lebar tanpa membedakan apa pun.
      *
-     * Lebar kolom cetakan ditentukan isi terpanjang, dan yang terpanjang justru judulnya —
+     * Lebar kolom cetakan ditentukan isi terpanjang, dan yang terpanjang justru judulnya:
      * "2026-09-18 PENGAJIAN IBU2 PENGURUS TINGKAT DESA" membuat kolom tetap melebar walau
-     * selnya cuma berisi "A". Jenisnya tetap dibawa supaya dua kegiatan di tanggal yang
-     * sama masih bisa dibedakan.
+     * selnya cuma berisi "A". Nama kegiatan baru ikut kalau memang perlu membedakan, yaitu
+     * saat ada dua kegiatan sejenis di tanggal yang sama.
+     *
+     * @param  \Illuminate\Support\Collection<int, Kegiatan>  $sekelas
      */
-    private function judulKolom(Kegiatan $kegiatan): string
+    private function judulKolom(Kegiatan $kegiatan, $sekelas): string
     {
-        return $kegiatan->tanggal->format('d/m').' '.Label::jenisPengajian($kegiatan->jenis_pengajian);
+        $tanggal = $kegiatan->tanggal->format('d/m');
+
+        $kembar = $sekelas->filter(
+            fn (Kegiatan $k) => $k->tanggal->isSameDay($kegiatan->tanggal)
+        )->count() > 1;
+
+        return $kembar ? $tanggal.' '.Str::limit($kegiatan->nama, 18) : $tanggal;
     }
 
     private function namaBerkas(Request $request): string
