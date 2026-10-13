@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/kegiatans/{kegiatan}/libur', [KegiatanController::class, 'libur']);
         Route::post('/kegiatans/{kegiatan}/absensi-wajah', [FaceController::class, 'identify']);
         Route::get('/rekap', [RekapController::class, 'index']);
+        Route::get('/rekap/ekspor', [RekapController::class, 'ekspor']);
     });
 
     // Kiosk (role absensi) ikut membaca ini untuk teks suaranya; yang mengubah tetap admin.

@@ -72,7 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 print:hidden lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
           navOpen ? "translate-x-0" : ""
         }`}
       >
@@ -107,7 +107,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-3 border-b border-gray-200 bg-white p-4 lg:hidden">
+        <div className="flex items-center gap-3 border-b border-gray-200 bg-white p-4 print:hidden lg:hidden">
           <button
             onClick={() => setNavOpen(true)}
             aria-label="Buka menu"

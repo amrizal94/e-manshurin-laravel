@@ -343,6 +343,86 @@ class AbsensiApiTest extends TestCase
         $this->assertContains($kegiatanDesa->id, array_column($data['kegiatans'], 'id'));
     }
 
+    /**
+     * Urutan baris dan jumlah H/I/A dihitung di server supaya layar, berkas Excel, dan
+     * cetakan membaca angka yang sama. Kalau salah satunya menghitung sendiri, yang
+     * ketahuan belakangan justru cetakan yang sudah terlanjur dibagikan.
+     */
+    public function test_rekap_urut_dewasa_dulu_dan_membawa_jumlah(): void
+    {
+        // Namanya sengaja mendahului secara abjad: kalau urutannya masih ikut nama,
+        // "Ahmad" yang remaja akan berdiri di atas yang menikah, dan test ini gagal.
+        Jamaah::create([
+            'kelompok_id' => $this->kelompok->id,
+            'nama_lengkap' => 'Zainal Menikah',
+            'jenis_kelamin' => 'L',
+            'kategori_usia' => 'menikah',
+        ]);
+
+        $kegiatan = $this->buatKegiatan('umum');
+        Absensi::create([
+            'kegiatan_id' => $kegiatan->id,
+            'jamaah_id' => $this->remaja->id,
+            'status' => 'hadir',
+            'metode' => 'manual',
+        ]);
+
+        $data = $this->actingAs($this->petugas)
+            ->getJson('/api/rekap?dari=2026-07-01&sampai=2026-07-31')
+            ->assertOk()->json('data');
+
+        // Yang menikah berdiri lebih dulu walau namanya berawalan Z.
+        $this->assertSame(
+            ['menikah', 'remaja'],
+            array_column(array_column($data['rows'], 'jamaah'), 'kategori_usia')
+        );
+        $this->assertSame(['hadir' => 0, 'izin' => 0, 'alpha' => 1], $data['rows'][0]['jumlah']);
+        $this->assertSame(['hadir' => 1, 'izin' => 0, 'alpha' => 0], $data['rows'][1]['jumlah']);
+    }
+
+    /** Berkas Excel memakai hitungan yang sama dengan layar, dan statusnya disingkat. */
+    public function test_ekspor_rekap_berisi_singkatan_dan_jumlah(): void
+    {
+        $kegiatan = $this->buatKegiatan('umum');
+        Absensi::create([
+            'kegiatan_id' => $kegiatan->id,
+            'jamaah_id' => $this->remaja->id,
+            'status' => 'izin',
+            'metode' => 'manual',
+        ]);
+
+        $isi = $this->actingAs($this->petugas)
+            ->get('/api/rekap/ekspor?dari=2026-07-01&sampai=2026-07-31')
+            ->assertOk()
+            ->assertDownload('rekap-2026-07-01-sd-2026-07-31.xlsx')
+            ->streamedContent();
+
+        $teks = $this->bacaXlsx($isi);
+
+        $this->assertStringContainsString('Remaja Satu', $teks);
+        // Judul kolom dipendekkan: tanggal plus jenis, bukan nama kegiatan yang panjang.
+        $this->assertStringContainsString('21/07 Umum', $teks);
+        $this->assertStringNotContainsString('Pengajian umum', $teks);
+    }
+
+    /** Ambil seluruh teks dari xlsx tanpa membongkar strukturnya. */
+    private function bacaXlsx(string $isi): string
+    {
+        $berkas = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($berkas, $isi);
+
+        $zip = new \ZipArchive;
+        $zip->open($berkas);
+        $teks = '';
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $teks .= $zip->getFromIndex($i);
+        }
+        $zip->close();
+        unlink($berkas);
+
+        return $teks;
+    }
+
     public function test_rekap_alpha_tiga_kali_berturut_flag(): void
     {
         foreach (['2026-07-01', '2026-07-08', '2026-07-15'] as $tanggal) {

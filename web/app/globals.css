@@ -20,3 +20,27 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Cetakan rekap: kolomnya satu per kegiatan, jadi sebulan pengajian tidak akan muat
+   di kertas tegak. Isinya dikecilkan karena tiap sel cuma satu huruf. */
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  body {
+    background: #fff;
+    font-size: 10px;
+  }
+
+  /* Judul tabel diulang di tiap halaman — tanpa ini halaman ketiga cuma deretan
+     huruf A tanpa ada yang tahu itu tanggal berapa. */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}
