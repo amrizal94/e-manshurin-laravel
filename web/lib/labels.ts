@@ -31,6 +31,15 @@ export const STATUS_KK: Record<string, string> = {
   mertua: "Mertua",
 };
 
+/**
+ * Urutan baris rekap: dewasa dulu, turun sampai yang paling muda. Sengaja beda dengan
+ * KATEGORI_USIA yang urut muda-ke-tua untuk daftar pilihan — ini urutan membaca laporan,
+ * dan yang dicari lebih dulu di laporan biasanya jamaah dewasanya.
+ */
+export const URUTAN_REKAP = [
+  "menikah", "janda", "duda", "usman", "remaja", "praremaja", "caberawit", "paud_tk",
+];
+
 export const STATUS_ABSENSI: Record<string, string> = {
   hadir: "Hadir",
   izin: "Izin",

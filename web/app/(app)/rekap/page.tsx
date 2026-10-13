@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { JENIS_PENGAJIAN, KATEGORI_USIA, STATUS_ABSENSI } from "@/lib/labels";
+import { JENIS_PENGAJIAN, KATEGORI_USIA, URUTAN_REKAP } from "@/lib/labels";
 
 interface RekapKegiatan { id: number; nama: string; tanggal: string; jenis_pengajian: string }
 interface RekapRow {
@@ -20,6 +20,18 @@ const SINGKAT: Record<string, string> = { hadir: "H", izin: "I", alpha: "A" };
 
 /** Tanpa penanda ini Excel membaca CSV UTF-8 sebagai Latin-1 dan nama berhuruf khusus jadi rusak. */
 const BOM = String.fromCharCode(0xfeff);
+
+/**
+ * Judul kolom kegiatan: tanggal pendek plus jenis pengajiannya.
+ *
+ * Lebar kolom cetakan ditentukan isi terpanjang, dan yang terpanjang justru judulnya —
+ * "2026-09-18 PENGAJIAN IBU2 PENGURUS TINGKAT DESA" membuat kolom tetap melebar walau
+ * selnya cuma berisi "A". Jenis pengajiannya tetap dibawa supaya dua kegiatan di tanggal
+ * yang sama masih bisa dibedakan.
+ */
+function judulKegiatan(k: RekapKegiatan): string {
+  return `${k.tanggal.slice(8, 10)}/${k.tanggal.slice(5, 7)} ${JENIS_PENGAJIAN[k.jenis_pengajian] ?? k.jenis_pengajian}`;
+}
 
 export default function RekapPage() {
   const now = new Date();
@@ -55,28 +67,65 @@ export default function RekapPage() {
   }
 
   /**
+   * Baris laporan: dikelompokkan per kategori usia, lengkap dengan jumlah H/I/A.
+   *
+   * Dihitung sekali di sini supaya tabel di layar dan berkas unduhannya memakai urutan
+   * dan angka yang sama persis — mencocokkan cetakan dengan layar yang urutannya berbeda
+   * itu pekerjaan yang tidak perlu ada.
+   */
+  const baris = useMemo(() => {
+    // Kategori di luar daftar jatuh ke paling bawah, bukan menyelip di tengah tanpa alasan.
+    const urutan = (kategori: string) => {
+      const i = URUTAN_REKAP.indexOf(kategori);
+
+      return i === -1 ? URUTAN_REKAP.length : i;
+    };
+
+    return rows
+      .map((r) => {
+        const terisi = Object.values(r.statuses).filter(Boolean);
+
+        return {
+          ...r,
+          jumlah: {
+            hadir: terisi.filter((s) => s === "hadir").length,
+            izin: terisi.filter((s) => s === "izin").length,
+            alpha: terisi.filter((s) => s === "alpha").length,
+          },
+        };
+      })
+      .sort((a, b) =>
+        urutan(a.jamaah.kategori_usia) - urutan(b.jamaah.kategori_usia) ||
+        a.jamaah.nama_lengkap.localeCompare(b.jamaah.nama_lengkap)
+      );
+  }, [rows]);
+
+  /**
    * CSV dirakit di browser dari tabel yang sudah tampil: tidak ada endpoint baru, dan
    * unduhannya tidak perlu menyelipkan token ke URL supaya bisa dibuka tanpa header.
    */
   function unduhCsv() {
     const judul = [
       "Nama", "Kelompok", "Kategori",
-      ...kegiatans.map((k) => `${k.tanggal} ${k.nama}`),
-      "Perlu Perhatian",
+      ...kegiatans.map(judulKegiatan),
+      "H", "I", "A", "Perlu Perhatian",
     ];
 
-    const baris = rows.map((r) => [
+    const isi = baris.map((r) => [
       r.jamaah.nama_lengkap,
       r.jamaah.kelompok ?? "",
       KATEGORI_USIA[r.jamaah.kategori_usia] ?? r.jamaah.kategori_usia,
       // sel kosong = bukan peserta kegiatan itu, bukan berarti tidak hadir
-      ...kegiatans.map((k) => STATUS_ABSENSI[r.statuses[k.id] ?? ""] ?? ""),
+      ...kegiatans.map((k) => SINGKAT[r.statuses[k.id] ?? ""] ?? ""),
+      String(r.jumlah.hadir),
+      String(r.jumlah.izin),
+      String(r.jumlah.alpha),
       r.perlu_perhatian ? "Ya" : "",
     ]);
 
     // Baris "sep=," memberi tahu Excel untuk memakai koma walau setelan wilayahnya
     // (termasuk Indonesia) memakai titik koma — tanpa itu seluruh baris masuk satu kolom.
-    const csv = "sep=,\r\n" + [judul, ...baris]
+    const csv = "sep=,\r\n" + [judul, ...isi]
       .map((kolom) => kolom.map((sel) => `"${sel.replaceAll('"', '""')}"`).join(","))
       .join("\r\n");
 
@@ -129,7 +178,8 @@ export default function RekapPage() {
       {kegiatans.length > 0 && (
         <>
           <p className="text-xs text-gray-500">
-            H = Hadir · I = Izin · A = Alpha · <span className="font-semibold text-red-600">★</span> = 3+ alpha berturut-turut
+            H = Hadir · I = Izin · A = Alpha · <span className="font-semibold text-red-600">★</span> = 3+ alpha berturut-turut ·
+            tiga kolom terakhir = jumlahnya, dihitung dari kegiatan yang dia jadi pesertanya
           </p>
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
@@ -137,21 +187,29 @@ export default function RekapPage() {
                 <tr>
                   <th className="sticky left-0 bg-gray-50 p-2 sm:p-3">Nama</th>
                   <th className="hidden p-2 sm:table-cell sm:p-3">Kelompok</th>
+                  <th className="hidden p-2 sm:table-cell sm:p-3">Kategori</th>
                   {kegiatans.map((k) => (
                     <th key={k.id} className="whitespace-nowrap p-2 text-center sm:p-3" title={k.nama}>
                       {k.tanggal.slice(5)}
                     </th>
                   ))}
+                  {/* Angka ringkasan dipisah garis supaya tidak terbaca sebagai kegiatan berikutnya. */}
+                  <th className="border-l border-gray-200 p-2 text-center sm:p-3">H</th>
+                  <th className="p-2 text-center sm:p-3">I</th>
+                  <th className="p-2 text-center sm:p-3">A</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((r) => (
+                {baris.map((r) => (
                   <tr key={r.jamaah.id} className={r.perlu_perhatian ? "bg-red-50/50" : ""}>
                     <td className="sticky left-0 bg-inherit p-2 font-medium text-gray-900 sm:p-3">
                       {r.perlu_perhatian && <span className="mr-1 text-red-600">★</span>}
                       {r.jamaah.nama_lengkap}
                     </td>
                     <td className="hidden p-2 text-gray-500 sm:table-cell sm:p-3">{r.jamaah.kelompok}</td>
+                    <td className="hidden whitespace-nowrap p-2 text-gray-500 sm:table-cell sm:p-3">
+                      {KATEGORI_USIA[r.jamaah.kategori_usia] ?? r.jamaah.kategori_usia}
+                    </td>
                     {kegiatans.map((k) => {
                       const s = r.statuses[k.id];
                       return (
@@ -166,6 +224,11 @@ export default function RekapPage() {
                         </td>
                       );
                     })}
+                    <td className="border-l border-gray-200 p-2 text-center font-semibold text-emerald-700 sm:p-3">
+                      {r.jumlah.hadir}
+                    </td>
+                    <td className="p-2 text-center text-amber-700 sm:p-3">{r.jumlah.izin}</td>
+                    <td className="p-2 text-center font-semibold text-red-700 sm:p-3">{r.jumlah.alpha}</td>
                   </tr>
                 ))}
               </tbody>
