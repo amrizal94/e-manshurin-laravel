@@ -84,7 +84,7 @@ function Kerangka({ children }: { children: React.ReactNode }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 print:hidden lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 print:hidden lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:translate-x-0 ${
           navOpen ? "translate-x-0" : ""
         }`}
       >
@@ -95,7 +95,7 @@ function Kerangka({ children }: { children: React.ReactNode }) {
             <p className="truncate text-xs text-gray-500">{user?.name}</p>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 p-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {visibleNav.map((item) => (
             <Link
               key={item.href}

@@ -13,6 +13,12 @@ type Level = "daerah" | "desa" | "kelompok";
 
 export default function StrukturPage() {
   const tanya = useKonfirmasi();
+  // Kolom saling menyaring. Tanpa ini kolom Kelompok memuat seluruh kelompok semua desa
+  // sekaligus — 50 baris sekarang, ratusan begitu daerahnya bertambah, padahal yang dicari
+  // petugas cuma satu. Belum memilih apa pun = tampil semua, supaya wilayah kecil tetap
+  // kelihatan utuh dalam sekali lihat.
+  const [pilihDaerah, setPilihDaerah] = useState<number | null>(null);
+  const [pilihDesa, setPilihDesa] = useState<number | null>(null);
   useRoleGuard(["super_admin", "admin"]);
   const [daerahs, setDaerahs] = useState<Daerah[]>([]);
   const [desas, setDesas] = useState<Desa[]>([]);
@@ -64,8 +70,10 @@ export default function StrukturPage() {
     // Bukan pertanyaan, cuma pemberitahuan — dipasang di tempat yang sama dengan galat lain.
     if (level === "desa" && !daerahs.length) return setError("Buat daerah dulu");
     if (level === "kelompok" && !desas.length) return setError("Buat desa dulu");
-    if (level === "desa" && daerahId === "") setDaerahId(daerahs[0].id);
-    if (level === "kelompok" && desaId === "") setDesaId(desas[0].id);
+    // Desa yang sedang dipilih jadi isian awal: petugas baru saja melihatnya di layar,
+    // tidak perlu memilihnya sekali lagi di dalam formulir.
+    if (level === "desa") setDaerahId(pilihDaerah ?? (daerahId === "" ? daerahs[0].id : daerahId));
+    if (level === "kelompok") setDesaId(pilihDesa ?? (desaId === "" ? desas[0].id : desaId));
     setModal(level);
     setNamaText("");
     setModalError("");
@@ -119,13 +127,30 @@ export default function StrukturPage() {
 
   // Desa & Kelompok dikelompokkan per induk (Daerah / Desa) biar gak campur
   // urut abjad lintas induk — daerahs & desas sendiri sudah terurut abjad dari API.
+  const desaTampil = pilihDaerah ? desas.filter((d) => d.daerah_id === pilihDaerah) : desas;
+
+  // Desa yang dipilih menang atas daerah yang dipilih: yang lebih sempit yang berlaku.
+  const kelompokTampil = pilihDesa
+    ? kelompoks.filter((k) => k.desa_id === pilihDesa)
+    : kelompoks.filter((k) => desaTampil.some((d) => d.id === k.desa_id));
+
   const desaGroups = daerahs
-    .map((da) => ({ induk: da, items: desas.filter((d) => d.daerah_id === da.id) }))
+    .map((da) => ({ induk: da, items: desaTampil.filter((d) => d.daerah_id === da.id) }))
     .filter((g) => g.items.length > 0);
 
   const kelompokGroups = desas
-    .map((de) => ({ induk: de, items: kelompoks.filter((k) => k.desa_id === de.id) }))
+    .map((de) => ({ induk: de, items: kelompokTampil.filter((k) => k.desa_id === de.id) }))
     .filter((g) => g.items.length > 0);
+
+  const namaDaerahDipilih = daerahs.find((d) => d.id === pilihDaerah)?.nama;
+  const namaDesaDipilih = desas.find((d) => d.id === pilihDesa)?.nama;
+
+  /** Melepas daerah ikut melepas desa — desanya sudah tidak kelihatan lagi untuk dilepas. */
+  function pilihDaerahnya(id: number) {
+    const sama = pilihDaerah === id;
+    setPilihDaerah(sama ? null : id);
+    setPilihDesa(null);
+  }
 
   const grupHeader = "bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-500";
 
@@ -143,7 +168,13 @@ export default function StrukturPage() {
           <ul className="divide-y divide-gray-100">
             {daerahs.map((d) => (
               <li key={d.id} className={baris}>
-                <span>{d.nama} <span className="text-gray-400">({d.desas_count} desa)</span></span>
+                <button
+                  onClick={() => pilihDaerahnya(d.id)}
+                  aria-pressed={pilihDaerah === d.id}
+                  className={`min-w-0 truncate text-left ${pilihDaerah === d.id ? "font-semibold text-emerald-700" : ""}`}
+                >
+                  {d.nama} <span className="text-gray-400">({d.desas_count} desa)</span>
+                </button>
                 <span className="flex gap-2">
                   <button
                     className={aksi}
@@ -169,7 +200,18 @@ export default function StrukturPage() {
 
         <section className={kolom}>
           <div className={header}>
-            <h3 className="text-sm font-semibold">Desa</h3>
+            <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              Desa
+              {namaDaerahDipilih && (
+                <button
+                  onClick={() => pilihDaerahnya(pilihDaerah!)}
+                  className="flex min-w-0 items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-normal text-emerald-700"
+                  title="Lepas saringan"
+                >
+                  <span className="truncate">{namaDaerahDipilih}</span> ×
+                </button>
+              )}
+            </h3>
             <button onClick={() => bukaTambah("desa")} className={btnTambah}>+ Tambah</button>
           </div>
           <div className="divide-y divide-gray-100">
@@ -179,7 +221,13 @@ export default function StrukturPage() {
                 <ul className="divide-y divide-gray-100">
                   {g.items.map((d) => (
                     <li key={d.id} className={baris}>
-                      <span>{d.nama} <span className="text-gray-400">({d.kelompoks_count} kelompok)</span></span>
+                      <button
+                        onClick={() => setPilihDesa(pilihDesa === d.id ? null : d.id)}
+                        aria-pressed={pilihDesa === d.id}
+                        className={`min-w-0 truncate text-left ${pilihDesa === d.id ? "font-semibold text-emerald-700" : ""}`}
+                      >
+                        {d.nama} <span className="text-gray-400">({d.kelompoks_count} kelompok)</span>
+                      </button>
                       <span className="flex gap-2">
                         <button
                           className={aksi}
@@ -208,7 +256,18 @@ export default function StrukturPage() {
 
         <section className={kolom}>
           <div className={header}>
-            <h3 className="text-sm font-semibold">Kelompok</h3>
+            <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              Kelompok
+              {(namaDesaDipilih ?? namaDaerahDipilih) && (
+                <button
+                  onClick={() => (pilihDesa ? setPilihDesa(null) : pilihDaerahnya(pilihDaerah!))}
+                  className="flex min-w-0 items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-normal text-emerald-700"
+                  title="Lepas saringan"
+                >
+                  <span className="truncate">{namaDesaDipilih ?? namaDaerahDipilih}</span> ×
+                </button>
+              )}
+            </h3>
             <button onClick={() => bukaTambah("kelompok")} className={btnTambah}>+ Tambah</button>
           </div>
           <div className="divide-y divide-gray-100">
