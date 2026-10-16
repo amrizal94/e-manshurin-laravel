@@ -80,6 +80,8 @@ async function kecilkan(file: File): Promise<File> {
 }
 
 interface Foto { id: number; path: string }
+/** `gambar` cuma diisi untuk yang gagal — alamat sementara di browser, bukan di server. */
+interface Hasil { nama: string; pesan: string; ok: boolean; gambar?: string }
 interface Jamaah { id: number; nama_lengkap: string; photos: Foto[] }
 
 export default function WajahPage() {
@@ -88,7 +90,7 @@ export default function WajahPage() {
   const [jamaah, setJamaah] = useState<Jamaah | null>(null);
   // Hasil per foto, bukan satu pesan. Dengan tiga foto sekaligus, satu baris pesan
   // selalu berbohong tentang dua foto lainnya.
-  const [hasil, setHasil] = useState<{ nama: string; pesan: string; ok: boolean }[]>([]);
+  const [hasil, setHasil] = useState<Hasil[]>([]);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   // Tiap foto menunggu face-service (timeout 15 detik di backend). Tanpa angka,
@@ -113,6 +115,15 @@ export default function WajahPage() {
   }, [id]);
 
   useEffect(reload, [reload]);
+
+  /** Alamat sementara itu menahan berkasnya di memori sampai dilepas — 10 MB per foto. */
+  function tutupHasil() {
+    setHasil((lama) => {
+      lama.forEach((h) => h.gambar && URL.revokeObjectURL(h.gambar));
+
+      return [];
+    });
+  }
 
   function unggah(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -141,10 +152,10 @@ export default function WajahPage() {
    */
   async function kirim(fotos: File[]) {
     setError("");
-    setHasil([]);
+    tutupHasil();
     setUploading(true);
 
-    const catatan: { nama: string; pesan: string; ok: boolean }[] = [];
+    const catatan: Hasil[] = [];
 
     for (const [i, asli] of fotos.entries()) {
       setProgres(fotos.length > 1 ? ` ${i + 1}/${fotos.length}` : "");
@@ -159,6 +170,9 @@ export default function WajahPage() {
           nama: asli.name,
           pesan: err instanceof Error ? err.message : "gagal unggah",
           ok: false,
+          // Yang gagal ditampilkan gambarnya: mencocokkan "20260928_193333.jpg" dengan
+          // foto di galeri itu pekerjaan sendiri, apalagi kalau tiga-tiganya beruntun.
+          gambar: URL.createObjectURL(asli),
         });
       }
       setHasil([...catatan]);
@@ -204,7 +218,7 @@ export default function WajahPage() {
               {hasil.some((h) => !h.ok) && ` · ${hasil.filter((h) => !h.ok).length} gagal`}
             </p>
             <button
-              onClick={() => setHasil([])}
+              onClick={tutupHasil}
               aria-label="Tutup hasil unggah"
               className="shrink-0 rounded px-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
             >
@@ -213,8 +227,13 @@ export default function WajahPage() {
           </div>
           <ul className="mt-2 space-y-1">
             {hasil.map((h, i) => (
-              <li key={i} className={`flex gap-2 text-sm ${h.ok ? "text-gray-600" : "text-red-700"}`}>
-                <span aria-hidden="true">{h.ok ? "✓" : "✕"}</span>
+              <li key={i} className={`flex items-start gap-2 text-sm ${h.ok ? "text-gray-600" : "text-red-700"}`}>
+                {h.gambar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={h.gambar} alt="" className="h-12 w-12 shrink-0 rounded border border-red-200 object-cover" />
+                ) : (
+                  <span aria-hidden="true">{h.ok ? "✓" : "✕"}</span>
+                )}
                 <span className="min-w-0 break-words">
                   <span className="font-medium">{h.nama}</span> — {h.pesan}
                 </span>

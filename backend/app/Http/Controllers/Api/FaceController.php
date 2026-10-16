@@ -31,7 +31,10 @@ class FaceController extends Controller
         }
 
         if ($response->status() === 422) {
-            abort(422, 'Wajah tidak terdeteksi pada gambar');
+            // Pesan yang menuntun, bukan sekadar benar: petugas di lapangan membaca
+            // "tidak terdeteksi" sebagai aplikasinya rusak, lalu mengulang foto yang
+            // sama persis. Yang dia perlukan adalah tahu foto berikutnya harus bagaimana.
+            abort(422, 'Wajah tidak terdeteksi. Pastikan wajahnya menghadap kamera, cukup terang, hanya satu orang dalam satu foto, dan tidak terlalu jauh.');
         }
         abort_unless($response->successful(), 502, 'Face service error');
 
