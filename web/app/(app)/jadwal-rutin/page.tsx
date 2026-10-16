@@ -15,9 +15,8 @@ interface JadwalRutin {
   hari: number[];
   jam_mulai: string;
   jam_selesai: string;
-  patokan_sholat: string | null;
-  offset_menit: number | null;
-  durasi_menit: number | null;
+  sholat: string | null;
+  toleransi_menit: number | null;
   aktif: boolean;
   daerah?: Opsi | null;
   desa?: Opsi | null;
@@ -28,13 +27,11 @@ interface JadwalRutin {
 /** Urutannya mengikuti Carbon::dayOfWeek di server: 0 Minggu sampai 6 Sabtu. */
 const HARI = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
-const PATOKAN = ["subuh", "dzuhur", "ashar", "maghrib", "isya"] as const;
-
 const KOSONG = {
   nama: "", jenis_pengajian: "umum", target: "",
   hari: [] as number[], jam_mulai: "", jam_selesai: "", aktif: true,
-  // Kosong = jam tetap. Terisi = jamnya ikut waktu sholat, dihitung ulang tiap tanggal.
-  patokan_sholat: "", offset_menit: 15, durasi_menit: 90,
+  // Kosong = pakai bawaan 30 menit. Jadwal sholat memakai angka kecil atau nol.
+  toleransi_menit: "" as number | "",
 };
 
 export default function JadwalRutinPage() {
@@ -78,9 +75,7 @@ export default function JadwalRutinPage() {
       hari: j.hari ?? [],
       jam_mulai: j.jam_mulai.slice(0, 5),
       jam_selesai: j.jam_selesai.slice(0, 5),
-      patokan_sholat: j.patokan_sholat ?? "",
-      offset_menit: j.offset_menit ?? 15,
-      durasi_menit: j.durasi_menit ?? 90,
+      toleransi_menit: j.toleransi_menit ?? "",
       aktif: j.aktif,
     } : KOSONG);
   }
@@ -114,9 +109,7 @@ export default function JadwalRutinPage() {
           hari: form.hari,
           jam_mulai: form.jam_mulai,
           jam_selesai: form.jam_selesai,
-          patokan_sholat: form.patokan_sholat || null,
-          offset_menit: form.patokan_sholat ? form.offset_menit : null,
-          durasi_menit: form.patokan_sholat ? form.durasi_menit : null,
+          toleransi_menit: form.toleransi_menit === "" ? null : form.toleransi_menit,
           aktif: form.aktif,
         }),
       });
@@ -190,10 +183,8 @@ export default function JadwalRutinPage() {
                   {!j.aktif && <span className="ml-2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Nonaktif</span>}
                 </p>
                 <p className="text-sm text-gray-600">
-                  {hariRingkas(j.hari)} ·{" "}
-                  {j.patokan_sholat
-                    ? `${j.offset_menit && j.offset_menit < 0 ? `${-j.offset_menit} menit sebelum` : `${j.offset_menit ?? 0} menit setelah`} ${j.patokan_sholat} · ${j.durasi_menit ?? 60} menit`
-                    : `${j.jam_mulai.slice(0, 5)}–${j.jam_selesai.slice(0, 5)}`}
+                  {hariRingkas(j.hari)} · {j.jam_mulai.slice(0, 5)}–{j.jam_selesai.slice(0, 5)}
+                  {j.toleransi_menit !== null && ` · toleransi ${j.toleransi_menit} menit`}
                 </p>
                 <p className="text-xs text-gray-400">
                   {JENIS_PENGAJIAN[j.jenis_pengajian]} · {target(j)}
@@ -263,42 +254,9 @@ export default function JadwalRutinPage() {
               <p className="mt-1 text-xs text-gray-400">Pondok yang mengaji tiap hari: centang ketujuhnya.</p>
             </fieldset>
 
-            {/* Pengajian pondok jamnya mengikuti waktu sholat, dan waktu sholat bergeser
-                tiap hari — jam tetap tidak bisa menyatakan "15 menit setelah Maghrib". */}
-            <div>
-              <label className={label} htmlFor="jr-patokan">Patokan Waktu</label>
-              <select id="jr-patokan" className={input} value={form.patokan_sholat}
-                onChange={(e) => setForm({ ...form, patokan_sholat: e.target.value })}>
-                <option value="">Jam tetap</option>
-                {PATOKAN.map((p) => (
-                  <option key={p} value={p}>Ikut waktu {p}</option>
-                ))}
-              </select>
-            </div>
-
-            {form.patokan_sholat && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={label} htmlFor="jr-offset">Selisih (menit)</label>
-                  <input id="jr-offset" type="number" min={-120} max={120} className={input}
-                    value={form.offset_menit}
-                    onChange={(e) => setForm({ ...form, offset_menit: Number(e.target.value) })} />
-                  <p className="mt-1 text-xs text-gray-500">Minus berarti sebelum, misalnya −10.</p>
-                </div>
-                <div>
-                  <label className={label} htmlFor="jr-durasi">Durasi (menit)</label>
-                  <input id="jr-durasi" type="number" min={5} max={480} className={input}
-                    value={form.durasi_menit}
-                    onChange={(e) => setForm({ ...form, durasi_menit: Number(e.target.value) })} />
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={label} htmlFor="jr-jam_mulai">
-                  {form.patokan_sholat ? "Jam Mulai (diabaikan)" : "Jam Mulai *"}
-                </label>
+                <label className={label} htmlFor="jr-jam_mulai">Jam Mulai *</label>
                 <input id="jr-jam_mulai" type="time" required className={input} value={form.jam_mulai}
                   onChange={(e) => setForm({ ...form, jam_mulai: e.target.value })} />
               </div>
@@ -307,6 +265,17 @@ export default function JadwalRutinPage() {
                 <input id="jr-jam_selesai" type="time" required className={input} value={form.jam_selesai}
                   onChange={(e) => setForm({ ...form, jam_selesai: e.target.value })} />
               </div>
+            </div>
+
+            <div>
+              <label className={label} htmlFor="jr-toleransi">Toleransi Absen (menit)</label>
+              <input id="jr-toleransi" type="number" min={0} max={60} placeholder="30" className={input}
+                value={form.toleransi_menit}
+                onChange={(e) => setForm({ ...form, toleransi_menit: e.target.value === "" ? "" : Number(e.target.value) })} />
+              <p className="mt-1 text-xs text-gray-500">
+                Berapa menit sebelum dan sesudah jamnya masih boleh absen. Kosong = 30 menit.
+                Nol berarti di luar jam itu sama sekali tidak bisa absen.
+              </p>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-gray-700">

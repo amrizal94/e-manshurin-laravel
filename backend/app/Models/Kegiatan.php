@@ -16,7 +16,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 #[Fillable([
     'nama', 'jenis_pengajian', 'daerah_id', 'desa_id', 'kelompok_id',
     'tanggal', 'jam_mulai', 'jam_selesai', 'created_by',
-    'jadwal_rutin_id', 'libur', 'keterangan_libur',
+    'jadwal_rutin_id', 'libur', 'keterangan_libur', 'toleransi_menit',
 ])]
 class Kegiatan extends Model
 {
@@ -34,6 +34,17 @@ class Kegiatan extends Model
      * Jamaah biasa datang lebih awal dan ada yang absen susulan setelah acara bubar.
      */
     public const TOLERANSI_MENIT = 30;
+
+    /**
+     * Toleransi kegiatan ini. Jadwal sholat memakai angka kecil atau nol: jamaahnya sudah
+     * berdiri di masjid, tidak ada yang perlu kelonggaran setengah jam — dan dengan 30
+     * menit di kedua sisi, sholat 30 menit memakan jendela 90 menit dan selalu
+     * bertabrakan dengan acara sebelum atau sesudahnya.
+     */
+    public function toleransi(): int
+    {
+        return $this->toleransi_menit ?? self::TOLERANSI_MENIT;
+    }
 
     /** Jenis pengajian -> kategori usia jamaah yang boleh absen. */
     public const KATEGORI_MAP = [
@@ -136,8 +147,8 @@ class Kegiatan extends Model
 
         $menit = self::menitHari($waktu);
 
-        return $menit >= self::menitJam($this->jam_mulai) - self::TOLERANSI_MENIT
-            && $menit <= self::menitJam($this->jam_selesai) + self::TOLERANSI_MENIT;
+        return $menit >= self::menitJam($this->jam_mulai) - $this->toleransi()
+            && $menit <= self::menitJam($this->jam_selesai) + $this->toleransi();
     }
 
     /**
@@ -175,14 +186,17 @@ class Kegiatan extends Model
             return true; // salah satu berlaku sepanjang hari
         }
 
-        $t = self::TOLERANSI_MENIT;
+        // Masing-masing memakai toleransinya sendiri. Pengajian boleh berjendela lebar
+        // sementara sholat di sebelahnya sempit, dan keduanya tetap bisa hidup berdampingan.
+        $ini = $this->toleransi();
+        $itu = $lain->toleransi();
 
         // Kurang dari, bukan kurang-dari-atau-sama-dengan: dua jendela yang cuma
         // bersentuhan di satu titik bukan tumpukan. Dengan tanda sama dengan, Maghrib
         // 17.30-18.00 dan Isya 19.00-19.30 dianggap bentrok — jendelanya berakhir dan
         // mulai sama-sama di 18.30 — dan jadwal Isya tidak pernah terbit satu pun.
-        return self::menitJam($this->jam_mulai) - $t < self::menitJam($lain->jam_selesai) + $t
-            && self::menitJam($lain->jam_mulai) - $t < self::menitJam($this->jam_selesai) + $t;
+        return self::menitJam($this->jam_mulai) - $ini < self::menitJam($lain->jam_selesai) + $itu
+            && self::menitJam($lain->jam_mulai) - $itu < self::menitJam($this->jam_selesai) + $ini;
     }
 
     /**

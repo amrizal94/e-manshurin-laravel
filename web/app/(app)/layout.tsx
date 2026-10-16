@@ -18,6 +18,7 @@ const NAV = [
   { href: "/jamaah", label: "Jamaah", roles: ["super_admin", "admin"] },
   { href: "/kegiatan", label: "Kegiatan" },
   { href: "/jadwal-rutin", label: "Jadwal Rutin", roles: ["super_admin", "admin"] },
+  { href: "/jadwal-sholat", label: "Jadwal Sholat", roles: ["super_admin", "admin"] },
   { href: "/absen-wajah", label: "Absen Wajah" },
   { href: "/rekap", label: "Rekapitulasi" },
   { href: "/pengguna", label: "Pengguna", roles: ["super_admin", "admin"] },

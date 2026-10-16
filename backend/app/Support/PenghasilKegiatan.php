@@ -40,14 +40,20 @@ class PenghasilKegiatan
                 continue;
             }
 
-            [$mulai, $selesai] = $jadwal->jamUntuk($kegiatan->tanggal);
+            $mulai = substr((string) $jadwal->jam_mulai, 0, 5);
+            $selesai = substr((string) $jadwal->jam_selesai, 0, 5);
 
             if (substr((string) $kegiatan->jam_mulai, 0, 5) === $mulai
-                && substr((string) $kegiatan->jam_selesai, 0, 5) === $selesai) {
+                && substr((string) $kegiatan->jam_selesai, 0, 5) === $selesai
+                && $kegiatan->toleransi_menit === $jadwal->toleransi_menit) {
                 continue;
             }
 
-            $kegiatan->update(['jam_mulai' => $mulai, 'jam_selesai' => $selesai]);
+            $kegiatan->update([
+                'jam_mulai' => $mulai,
+                'jam_selesai' => $selesai,
+                'toleransi_menit' => $jadwal->toleransi_menit,
+            ]);
             $diubah++;
         }
 

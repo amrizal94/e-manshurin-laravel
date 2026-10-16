@@ -255,25 +255,64 @@ class JadwalRutinTest extends TestCase
         );
     }
 
-    /** Jam yang berpatokan sholat dihitung ulang tiap tanggal, bukan disalin dari jadwalnya. */
-    public function test_jadwal_berpatokan_sholat_menerbitkan_jam_yang_bergeser(): void
+    /**
+     * Peraturan Pondok selesai 15.15 lalu Ashar mulai 15.30. Dengan toleransi 30 menit
+     * untuk semua, keduanya selalu bertabrakan berapa pun jamnya digeser — satu sholat 30
+     * menit memakan jendela 90 menit. Dengan toleransi milik masing-masing, keduanya hidup
+     * berdampingan tanpa ada jam yang perlu dibohongi.
+     */
+    public function test_toleransi_per_jadwal_membuat_acara_berdempetan_tidak_bentrok(): void
+    {
+        // Tanpa peserta tidak ada yang bisa bentrok: dua kegiatan boleh berbarengan
+        // selama tidak ada jamaah yang berhak hadir di keduanya.
+        $this->jamaah();
+
+        $this->buat([
+            'nama' => 'Pembacaan Peraturan Pondok',
+            'hari' => [0, 1, 2, 3, 4, 5, 6],
+            'jam_mulai' => '14:00',
+            'jam_selesai' => '15:15',
+            'toleransi_menit' => 10,
+        ])->assertCreated()->assertJsonPath('data.dibuat', 30);
+
+        $this->buat([
+            'nama' => 'Sholat ashar',
+            'hari' => [0, 1, 2, 3, 4, 5, 6],
+            'jam_mulai' => '15:30',
+            'jam_selesai' => '16:00',
+            'sholat' => 'ashar',
+            'toleransi_menit' => 5,
+        ])->assertCreated()
+            ->assertJsonPath('data.dibuat', 30)
+            ->assertJsonPath('data.bentrok', []);
+
+        // Dengan toleransi bawaan 30 menit, pasangan yang sama memang harus ditolak.
+        $this->buat([
+            'nama' => 'Pengajian Sore',
+            'hari' => [0, 1, 2, 3, 4, 5, 6],
+            'jam_mulai' => '16:30',
+            'jam_selesai' => '17:00',
+        ])->assertCreated()->assertJsonPath('data.dibuat', 0);
+    }
+
+    /** Toleransi nol berarti di luar jam itu memang tidak bisa absen sama sekali. */
+    public function test_toleransi_nol_menutup_jendela_absen_di_luar_jamnya(): void
     {
         $this->buat([
+            'nama' => 'Sholat maghrib',
             'hari' => [0, 1, 2, 3, 4, 5, 6],
-            'patokan_sholat' => 'maghrib',
-            'offset_menit' => 15,
-            'durasi_menit' => 90,
+            'jam_mulai' => '17:30',
+            'jam_selesai' => '18:00',
+            'sholat' => 'maghrib',
+            'toleransi_menit' => 0,
         ])->assertCreated();
 
-        $jam = Kegiatan::orderBy('tanggal')->take(30)->get()
-            ->map(fn (Kegiatan $k) => substr((string) $k->jam_mulai, 0, 5));
+        $kegiatan = Kegiatan::orderBy('tanggal')->first();
 
-        // Jam yang diisi di formulir tidak dipakai sama sekali.
-        $this->assertSame(0, $jam->filter(fn ($j) => $j === '18:30')->count());
-        // Maghrib di Kediri sekitar pukul 17.30, jadi +15 menit jatuh di sekitar 17.45.
-        $this->assertTrue($jam->every(fn ($j) => $j >= '17:30' && $j <= '18:15'), $jam->implode(','));
-        // Dan tidak semuanya sama — itu inti seluruh fiturnya.
-        $this->assertGreaterThan(1, $jam->unique()->count());
+        $this->assertTrue($kegiatan->jendelaAbsenTerbuka(Carbon::parse('17:30')));
+        $this->assertTrue($kegiatan->jendelaAbsenTerbuka(Carbon::parse('18:00')));
+        $this->assertFalse($kegiatan->jendelaAbsenTerbuka(Carbon::parse('17:29')));
+        $this->assertFalse($kegiatan->jendelaAbsenTerbuka(Carbon::parse('18:01')));
     }
 
     public function test_hari_kosong_ditolak(): void

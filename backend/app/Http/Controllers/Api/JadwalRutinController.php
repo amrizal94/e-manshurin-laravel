@@ -29,11 +29,11 @@ class JadwalRutinController extends Controller
             'hari.*' => ['integer', 'between:0,6'],
             'jam_mulai' => ['required', 'date_format:H:i'],
             'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
-            // Kosong berarti jamnya tetap seperti dulu. Terisi berarti jam di atas cuma
-            // perkiraan terakhir; yang menentukan waktu sholat pada tanggal terbitnya.
-            'patokan_sholat' => ['nullable', 'in:'.implode(',', \App\Support\WaktuSholat::PATOKAN)],
-            'offset_menit' => ['nullable', 'integer', 'between:-120,120'],
-            'durasi_menit' => ['nullable', 'integer', 'between:5,480'],
+            // Terisi berarti jadwal ini mewakili satu sholat berjamaah, dan halaman
+            // Jadwal Sholat yang menyuntingnya.
+            'sholat' => ['nullable', 'in:'.implode(',', \App\Support\WaktuSholat::PATOKAN)],
+            // Nol berarti di luar jam itu memang tidak bisa absen sama sekali.
+            'toleransi_menit' => ['nullable', 'integer', 'between:0,60'],
             'aktif' => ['boolean'],
         ];
     }
