@@ -102,7 +102,14 @@ class KegiatanController extends Controller
                 'wilayah' => $user->kelompok?->nama ? "Kelompok {$user->kelompok->nama}"
                     : ($user->desa?->nama ? "Desa {$user->desa->nama}"
                         : ($user->daerah?->nama ? "Daerah {$user->daerah->nama}" : 'Seluruh wilayah')),
-                'aktif' => Kegiatan::sedangBerlangsung($user)->map->only($kolom)->values(),
+                // hadir & peserta ikut: teks berjalan di kiosk memakainya, dan tanpa ini
+                // layar cuma bisa menghitung orang yang kebetulan memindai di sesi itu —
+                // angka yang terlihat seperti jumlah hadir padahal bukan.
+                'aktif' => Kegiatan::sedangBerlangsung($user)->map(fn (Kegiatan $k) => [
+                    ...$k->only($kolom),
+                    'hadir' => $k->absensis()->where('status', 'hadir')->count(),
+                    'peserta' => $k->pesertaQuery()->count(),
+                ])->values(),
                 'berikutnya' => $berikutnya?->only($kolom),
             ],
         ]);

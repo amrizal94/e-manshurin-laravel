@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as faceapi from "face-api.js";
 import { api, ApiError } from "@/lib/api";
+import { jadwalSholat, jam as formatJam, sholatBerikutnya } from "@/lib/sholat";
 import { useKamera } from "@/lib/useKamera";
 import { buangKalimat, isiTemplate, segarkanSuara, ucapkan } from "@/lib/suara";
 
@@ -20,6 +21,9 @@ interface KegiatanRingkas {
   jenis_pengajian: string;
   jam_mulai: string | null;
   jam_selesai: string | null;
+  // Hanya ada pada kegiatan yang sedang berlangsung; dipakai teks berjalan.
+  hadir?: number;
+  peserta?: number;
 }
 
 interface Jadwal {
@@ -48,6 +52,7 @@ const JAM_BERIKUTNYA = "{jam_berikutnya}";
 const SUARA_BAWAAN = {
   suara_absen: "{doa}, {sapaan} {nama}, sudah absen",
   suara_idle: "Halo {sapaan} {nama}, saat ini belum ada kegiatan ya. Pengajian berikutnya pukul {jam_berikutnya}.",
+  koordinat: "-7.8166,112.0114",
 };
 
 function isIOSSafari(): boolean {
@@ -140,12 +145,14 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   // Jam besar: kiosk ditinggal menyala seharian di dinding, dan yang lewat perlu tahu
   // jam berapa sekarang tanpa mengeluarkan HP. Kosong saat dirender di server — waktu
   // versi server bukan waktu pembacanya.
-  const [jam, setJam] = useState("");
+  const [jamSekarang, setJamSekarang] = useState("");
+  // Koordinat dari Pengaturan; jadwalnya dihitung di perangkat ini, tanpa jaringan.
+  const [koordinat, setKoordinat] = useState(SUARA_BAWAAN.koordinat);
   const [proses, setProses] = useState(false);
   const [riwayat, setRiwayat] = useState<Hasil[]>([]);
 
   useEffect(() => {
-    const tik = () => setJam(new Date().toLocaleTimeString("id-ID", { hour12: false }));
+    const tik = () => setJamSekarang(new Date().toLocaleTimeString("id-ID", { hour12: false }));
     tik();
     const pewaktu = setInterval(tik, 1000);
 
@@ -212,6 +219,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       try {
         const res = await api<typeof SUARA_BAWAAN>("/settings");
         suaraRef.current = { ...SUARA_BAWAAN, ...res.data };
+        setKoordinat(res.data.koordinat || SUARA_BAWAAN.koordinat);
       } catch {
         // pertahankan teks terakhir — kiosk tetap menyapa walau server sesaat tidak terjangkau
       }
@@ -432,6 +440,29 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     ? `Jadwal berikutnya: ${kalimatJadwal(jadwal.berikutnya)}`
     : "Tidak ada jadwal lagi hari ini.";
 
+  // Dihitung ulang tiap menit, bukan tiap detik: yang berubah cuma mana yang berikutnya.
+  const menit = jamSekarang.slice(0, 5);
+  const sholat = useMemo(() => jadwalSholat(koordinat), [koordinat, menit]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sholatNanti = useMemo(() => sholatBerikutnya(koordinat), [koordinat, menit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Teks berjalan: isinya dari data, tidak ada yang perlu diketik siapa pun.
+   *
+   * Kolom pengumuman manual di aplikasi seperti ini selalu berakhir sama — diisi sekali
+   * waktu peluncuran, lalu tidak pernah diganti, dan setahun kemudian layar masjid masih
+   * mengumumkan acara yang sudah lewat.
+   */
+  const berjalan = [
+    ...(jadwal?.aktif ?? []).map((k) =>
+      k.peserta ? `${k.nama} — hadir ${k.hadir ?? 0} dari ${k.peserta}` : k.nama
+    ),
+    jadwal?.berikutnya ? `Berikutnya: ${kalimatJadwal(jadwal.berikutnya)}` : null,
+    sholatNanti ? `${sholatNanti.nama} pukul ${formatJam(sholatNanti.waktu)}` : null,
+    riwayat.length > 0
+      ? `Baru absen: ${riwayat.slice(0, 4).map((h) => h.nama).filter(Boolean).join(", ")}`
+      : null,
+  ].filter((t): t is string => Boolean(t));
+
   const jalanKembali = kegiatanId ? `/kegiatan/${kegiatanId}/absen-wajah` : "/absen-wajah";
 
   if (sesiHabis) {
@@ -465,9 +496,9 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       {/* di mode terkunci, judul digeser turun supaya tidak tertimpa link "Kembali" di layar HP */}
       <h1 className={`judul-hud text-xl text-white sm:text-3xl ${kegiatanId ? "mt-8 sm:mt-0" : ""}`}>Absen Wajah</h1>
 
-      {jam && (
+      {jamSekarang && (
         <p className="angka-hud -mt-2 text-4xl text-[color:var(--sian)] drop-shadow-[0_0_14px_rgba(0,212,255,.6)] sm:text-6xl">
-          {jam}
+          {jamSekarang}
         </p>
       )}
 
@@ -481,6 +512,52 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
         <p className={`-mt-1 text-center text-sm ${adaKegiatan ? "text-[color:var(--sian)]" : "text-[color:var(--redup)]"}`}>
           {adaKegiatan ? jadwal.aktif.map((k) => k.nama).join(" · ") : jadwalBerikutnya}
         </p>
+      )}
+
+      {/* Layar ini menyala dari pagi sampai malam, sedangkan pengajiannya cuma dua jam.
+          Jadwal sholat membuatnya berguna di sisa harinya. */}
+      {sholat.length > 0 && (
+        <div className="panel flex w-full max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-2">
+          {sholat.map((w) => {
+            const giliran = w.nama === sholatNanti?.nama;
+
+            return (
+              <span key={w.nama} className="text-center">
+                <span
+                  className={`block text-[10px] uppercase tracking-widest ${
+                    giliran ? "text-[color:var(--sian)]" : "text-[color:var(--redup)]"
+                  }`}
+                >
+                  {w.nama}
+                </span>
+                <span
+                  className={`angka-hud text-lg ${
+                    giliran
+                      ? "text-[color:var(--sian)] drop-shadow-[0_0_10px_rgba(0,212,255,.6)]"
+                      : "text-white"
+                  }`}
+                >
+                  {formatJam(w.waktu)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {berjalan.length > 0 && (
+        <div className="w-full max-w-2xl overflow-hidden border-y border-[color:var(--garis)] py-1">
+          {/* Isinya digandakan supaya sambungannya mulus waktu gulungannya mengulang. */}
+          <div className="teks-berjalan text-sm text-[color:var(--teks)]">
+            {[0, 1].map((salinan) => (
+              <span key={salinan} className="shrink-0">
+                {berjalan.map((t) => (
+                  <span key={t} className="mx-5">{t}</span>
+                ))}
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {!suaraAktif && (

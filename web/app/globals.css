@@ -95,6 +95,26 @@ body {
   border-top: 0;
 }
 
+/* Teks berjalan di kiosk. Berhenti saat ditunjuk, supaya yang ingin membaca bisa membaca. */
+.teks-berjalan {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: berjalan 60s linear infinite;
+}
+
+.teks-berjalan:hover {
+  animation-play-state: paused;
+}
+
+@keyframes berjalan {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 /* Judul: huruf besar berjarak lebar, menyala tipis. */
 .judul-hud {
   font-family: Orbitron, "Segoe UI", system-ui, sans-serif;

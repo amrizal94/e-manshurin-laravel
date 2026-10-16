@@ -23,6 +23,8 @@ class Setting extends Model
 
     public const SUARA_IDLE = 'suara_idle';
 
+    public const KOORDINAT = 'koordinat';
+
     public const DEFAULT_WA_REPLY_TEMPLATE = 'Terima kasih {nama}, izin Anda pada kegiatan "{kegiatan}" tercatat: {keterangan}';
 
     /**
@@ -33,6 +35,9 @@ class Setting extends Model
         self::WA_REPLY_TEMPLATE => self::DEFAULT_WA_REPLY_TEMPLATE,
         self::SUARA_ABSEN => '{doa}, {sapaan} {nama}, sudah absen',
         self::SUARA_IDLE => 'Halo {sapaan} {nama}, saat ini belum ada kegiatan ya. Pengajian berikutnya pukul {jam_berikutnya}.',
+        // Dipakai kiosk menghitung waktu sholat di perangkatnya sendiri. Bawaannya Kediri;
+        // selisih beberapa kilometer tidak mengubah menitnya, jadi tidak perlu presisi.
+        self::KOORDINAT => '-7.8166,112.0114',
     ];
 
     public static function get(string $key, ?string $default = null): ?string

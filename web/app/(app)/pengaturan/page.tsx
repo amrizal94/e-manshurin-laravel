@@ -32,6 +32,14 @@ const KARTU = [
       "{doa} berisi Jazakallahu/Jazakillahu Khoiro sesuai jenis kelamin, {sapaan} berisi Dek, Mas, Mbak, Pak, atau Bu sesuai umur.",
   },
   {
+    key: "koordinat",
+    judul: "Koordinat Masjid",
+    placeholder: [],
+    suara: false,
+    catatan:
+      "Dipakai kiosk menghitung jadwal sholat di perangkatnya sendiri, tanpa internet. Isi lintang,bujur — ambil dari Google Maps: klik kanan titik masjid, angka yang muncul paling atas. Selisih beberapa kilometer tidak mengubah menitnya.",
+  },
+  {
     key: "suara_idle",
     judul: "Suara di Luar Jam Kegiatan",
     placeholder: ["{sapaan}", "{nama}", JAM_BERIKUTNYA],
