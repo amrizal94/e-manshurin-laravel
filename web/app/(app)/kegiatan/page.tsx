@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useKonfirmasi } from "@/components/Konfirmasi";
@@ -92,8 +92,36 @@ export default function KegiatanPage() {
     Promise.resolve().then(() => {
       setFilterDari(url.get("dari") ?? "");
       setFilterSampai(url.get("sampai") ?? hariIni());
+      if (url.has("jenis_pengajian")) setFilterJenis(url.get("jenis_pengajian") ?? "");
+      if (url.has("page")) setPage(Math.max(1, Number(url.get("page")) || 1));
     });
   }, []);
+
+  /**
+   * Saringan ditulis balik ke alamat, supaya masuk ke detail kegiatan lalu kembali tidak
+   * menghapus rentang tanggal dan jenis pengajian yang baru saja disusun.
+   *
+   * replaceState, bukan pushState: mengubah tanggal jangan sampai menumpuk puluhan
+   * langkah di riwayat browser.
+   */
+  const pertamaKali = useRef(true);
+
+  useEffect(() => {
+    if (pertamaKali.current) {
+      pertamaKali.current = false;
+
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (filterJenis) params.set("jenis_pengajian", filterJenis);
+    if (filterDari) params.set("dari", filterDari);
+    if (filterSampai) params.set("sampai", filterSampai);
+    if (page > 1) params.set("page", String(page));
+
+    const kueri = params.toString();
+    window.history.replaceState(null, "", kueri ? `?${kueri}` : window.location.pathname);
+  }, [filterJenis, filterDari, filterSampai, page]);
 
   useEffect(reload, [reload]);
   useEffect(() => {

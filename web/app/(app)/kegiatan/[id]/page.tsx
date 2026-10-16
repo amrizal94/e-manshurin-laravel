@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { TombolKembali } from "@/components/TombolKembali";
 import { JENIS_PENGAJIAN, KATEGORI_USIA } from "@/lib/labels";
 
 interface Opsi { id: number; nama: string }
@@ -123,7 +124,7 @@ export default function KegiatanDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/kegiatan" className="text-sm text-gray-500 hover:text-gray-700">← Kembali ke Kegiatan</Link>
+      <TombolKembali href="/kegiatan">← Kembali ke Kegiatan</TombolKembali>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
       {/* Absensi ditolak server kalau kegiatannya libur. Dikatakan di depan, bukan

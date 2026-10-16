@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { api } from "@/lib/api";
+import { TombolKembali } from "@/components/TombolKembali";
 import { useKonfirmasi } from "@/components/Konfirmasi";
 import { useKamera } from "@/lib/useKamera";
 import { useRoleGuard } from "@/lib/useRoleGuard";
@@ -260,7 +260,7 @@ export default function WajahPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/jamaah" className="text-sm text-gray-500 hover:text-gray-700">← Kembali ke Data Jamaah</Link>
+      <TombolKembali href="/jamaah">← Kembali ke Data Jamaah</TombolKembali>
       <h2 className="text-xl font-bold text-gray-900">
         Foto Wajah — {jamaah?.nama_lengkap ?? "..."}
       </h2>

@@ -272,8 +272,48 @@ export default function JamaahPage() {
       setFilterJk(url.get("jenis_kelamin") ?? "");
       setFilterAktif(url.get("aktif") ?? "");
       setHanyaMubaligh(url.has("status_mubaligh"));
+      // Nomor halaman ikut: menata foto wajah itu menurun satu daftar, dan kembali ke
+      // halaman 1 sama menjengkelkannya dengan kehilangan saringannya.
+      if (url.has("page")) setPage(Math.max(1, Number(url.get("page")) || 1));
     });
   }, []);
+
+  /**
+   * Saringan ditulis balik ke alamat.
+   *
+   * Halaman ini sudah membaca saringan dari alamat sejak tautan dashboard dibuat, tapi
+   * tidak pernah menuliskannya kembali. Akibatnya alamatnya tetap "/jamaah" polos: masuk
+   * ke halaman foto wajah lalu kembali, saringannya hilang dan petugas harus menyusunnya
+   * ulang — puluhan kali, karena foto wajah ditata satu per satu.
+   *
+   * replaceState, bukan pushState: mengetik di kotak cari jangan sampai menumpuk puluhan
+   * langkah di riwayat browser. Entri yang sekarang diperbarui di tempat, jadi tombol
+   * Kembali dari halaman foto mendarat di daftar yang sama persis.
+   */
+  const pertamaKali = useRef(true);
+
+  useEffect(() => {
+    // Lewati putaran pertama: saringan dari alamat baru dipasang sesudah ini, dan
+    // menulis lebih dulu justru menghapus apa yang sedang dibaca.
+    if (pertamaKali.current) {
+      pertamaKali.current = false;
+
+      return;
+    }
+
+    const params = mode === "keluarga"
+      ? new URLSearchParams([
+        ...(searchDebounced ? [["search", searchDebounced]] : []),
+        ...(filterKelompok ? [["kelompok_id", filterKelompok]] : []),
+        ...(tanpaKeluarga ? [["tanpa_keluarga", "1"]] : []),
+      ] as [string, string][])
+      : paramOrang();
+
+    if (page > 1) params.set("page", String(page));
+
+    const kueri = params.toString();
+    window.history.replaceState(null, "", kueri ? `?${kueri}` : window.location.pathname);
+  }, [mode, tanpaKeluarga, searchDebounced, filterKelompok, paramOrang, page]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
