@@ -150,7 +150,10 @@ export default function RekapPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((r) => (
-                  <tr key={r.jamaah.id} className={r.perlu_perhatian ? "bg-red-50/50 print:bg-transparent" : ""}>
+                  // Tanpa tingkat transparansi: "bg-red-50/50" itu kelas tersendiri, dan
+                  // pemetaan tema gelap cuma mengenai yang polos — yang berlaku tetap merah
+                  // muda pucat aslinya, menumpuk di atas latar gelap sampai tulisannya pudar.
+                  <tr key={r.jamaah.id} className={r.perlu_perhatian ? "bg-red-50 print:bg-transparent" : ""}>
                     <td className="sticky left-0 bg-inherit p-2 font-medium text-gray-900 print:static sm:p-3">
                       {r.perlu_perhatian && <span className="mr-1 text-red-600">★</span>}
                       {r.jamaah.nama_lengkap}
