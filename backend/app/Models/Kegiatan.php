@@ -177,8 +177,12 @@ class Kegiatan extends Model
 
         $t = self::TOLERANSI_MENIT;
 
-        return self::menitJam($this->jam_mulai) - $t <= self::menitJam($lain->jam_selesai) + $t
-            && self::menitJam($lain->jam_mulai) - $t <= self::menitJam($this->jam_selesai) + $t;
+        // Kurang dari, bukan kurang-dari-atau-sama-dengan: dua jendela yang cuma
+        // bersentuhan di satu titik bukan tumpukan. Dengan tanda sama dengan, Maghrib
+        // 17.30-18.00 dan Isya 19.00-19.30 dianggap bentrok — jendelanya berakhir dan
+        // mulai sama-sama di 18.30 — dan jadwal Isya tidak pernah terbit satu pun.
+        return self::menitJam($this->jam_mulai) - $t < self::menitJam($lain->jam_selesai) + $t
+            && self::menitJam($lain->jam_mulai) - $t < self::menitJam($this->jam_selesai) + $t;
     }
 
     /**

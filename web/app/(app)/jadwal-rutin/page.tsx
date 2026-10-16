@@ -204,8 +204,14 @@ export default function JadwalRutinPage() {
                 <button onClick={() => hapus(j)} className="text-red-400 hover:text-red-700">Hapus</button>
               </div>
             </div>
-            <p className="mt-2 border-t border-gray-100 pt-2 text-xs text-gray-400">
-              {j.kegiatan_mendatang_count} kegiatan sudah terbit sampai hari ini ke depan
+            {/* Nol yang tenang itu yang bikin jadwal Isya tidak terbit berhari-hari tanpa
+                ada yang sadar: angkanya kecil dan abu-abu, sama seperti 30. */}
+            <p className={`mt-2 border-t border-gray-100 pt-2 text-xs ${
+              j.aktif && j.kegiatan_mendatang_count === 0 ? "text-amber-700" : "text-gray-400"
+            }`}>
+              {j.aktif && j.kegiatan_mendatang_count === 0
+                ? "Belum ada kegiatan yang terbit. Biasanya karena tiap tanggalnya bentrok dengan kegiatan lain — simpan ulang jadwal ini untuk melihat alasannya."
+                : `${j.kegiatan_mendatang_count} kegiatan sudah terbit sampai hari ini ke depan`}
             </p>
           </div>
         ))}

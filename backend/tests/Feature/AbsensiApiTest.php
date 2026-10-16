@@ -205,6 +205,43 @@ class AbsensiApiTest extends TestCase
             ->assertCreated();
     }
 
+    /**
+     * Maghrib dan Isya di pondok: 17.30-18.00 lalu 19.00-19.30. Dengan toleransi 30 menit
+     * di kedua sisi, jendelanya berakhir dan mulai sama-sama di 18.30 — bersentuhan, bukan
+     * bertumpuk. Dulu keduanya dianggap bentrok, dan jadwal Isya tidak pernah menerbitkan
+     * satu kegiatan pun: tertulis 0 sementara jadwal lain 30, tanpa ada yang tahu kenapa.
+     */
+    public function test_jendela_yang_cuma_bersentuhan_bukan_bentrok(): void
+    {
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Sholat Maghrib',
+                'jenis_pengajian' => 'umum',
+                'jam_mulai' => '17:30',
+                'jam_selesai' => '18:00',
+            ]))
+            ->assertCreated();
+
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Sholat Isya',
+                'jenis_pengajian' => 'umum',
+                'jam_mulai' => '19:00',
+                'jam_selesai' => '19:30',
+            ]))
+            ->assertCreated();
+
+        // Semenit lebih dekat dan jendelanya benar-benar bertumpuk — itu tetap ditolak.
+        $this->actingAs($this->petugas)
+            ->postJson('/api/kegiatans', $this->payloadKegiatan([
+                'nama' => 'Sholat Isya Kedua',
+                'jenis_pengajian' => 'umum',
+                'jam_mulai' => '18:59',
+                'jam_selesai' => '19:30',
+            ]))
+            ->assertStatus(422);
+    }
+
     public function test_kegiatan_beda_kategori_usia_boleh_berbarengan(): void
     {
         $this->actingAs($this->petugas)
