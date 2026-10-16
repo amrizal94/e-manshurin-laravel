@@ -315,6 +315,58 @@ class JadwalRutinTest extends TestCase
         $this->assertFalse($kegiatan->jendelaAbsenTerbuka(Carbon::parse('18:01')));
     }
 
+    /**
+     * Terlihat tidak sama dengan milik sendiri.
+     *
+     * Pengurus kelompok memang harus melihat jadwal tingkat daerah — jamaahnya ikut hadir
+     * di situ. Tapi kalau boleh mengubahnya, dia bisa mengambil alih jadwal sholat daerah
+     * lalu mengarahkannya ke kelompoknya sendiri, dan jadwal itu lenyap dari seluruh
+     * kelompok lain se-daerah tanpa ada yang menyadarinya.
+     */
+    public function test_jadwal_milik_daerah_tidak_bisa_diambil_alih_admin_kelompok(): void
+    {
+        $jadwalDaerah = JadwalRutin::create([
+            'nama' => 'Sholat maghrib',
+            'jenis_pengajian' => 'umum',
+            'daerah_id' => $this->kelompok->desa->daerah_id,
+            'hari' => [0, 1, 2, 3, 4, 5, 6],
+            'jam_mulai' => '17:30',
+            'jam_selesai' => '18:00',
+            'sholat' => 'maghrib',
+            'aktif' => true,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $adminKelompok = User::factory()->create(['kelompok_id' => $this->kelompok->id]);
+        $adminKelompok->assignRole('admin');
+
+        // Melihatnya boleh: jamaah kelompok ini memang ikut sholat berjamaah daerah.
+        $terlihat = collect($this->actingAs($adminKelompok)->getJson('/api/jadwal-rutins')
+            ->assertOk()->json('data'))->pluck('id');
+        $this->assertTrue($terlihat->contains($jadwalDaerah->id));
+
+        $this->actingAs($adminKelompok)
+            ->putJson("/api/jadwal-rutins/{$jadwalDaerah->id}", [
+                'nama' => 'Sholat maghrib',
+                'jenis_pengajian' => 'umum',
+                'kelompok_id' => $this->kelompok->id,
+                'hari' => [0, 1, 2, 3, 4, 5, 6],
+                'jam_mulai' => '17:30',
+                'jam_selesai' => '18:00',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($adminKelompok)
+            ->deleteJson("/api/jadwal-rutins/{$jadwalDaerah->id}")
+            ->assertForbidden();
+
+        $this->assertSame(
+            $this->kelompok->desa->daerah_id,
+            $jadwalDaerah->fresh()->daerah_id,
+            'target jadwal daerah tidak boleh berpindah ke kelompok'
+        );
+    }
+
     public function test_hari_kosong_ditolak(): void
     {
         $this->buat(['hari' => []])->assertStatus(422);

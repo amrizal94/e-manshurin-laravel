@@ -105,6 +105,7 @@ class JadwalRutinController extends Controller
     public function update(Request $request, JadwalRutin $jadwalRutin): JsonResponse
     {
         $this->assertVisible($request, $jadwalRutin);
+        $this->assertMilikWilayahSendiri($request->user(), $jadwalRutin);
         $data = $this->dataTervalidasi($request);
         $this->assertTarget($request->user(), $data);
         $jadwalRutin->update($data);
@@ -129,6 +130,7 @@ class JadwalRutinController extends Controller
     public function destroy(Request $request, JadwalRutin $jadwalRutin): JsonResponse
     {
         $this->assertVisible($request, $jadwalRutin);
+        $this->assertMilikWilayahSendiri($request->user(), $jadwalRutin);
         $mendatang = $jadwalRutin->kegiatans()
             ->whereDate('tanggal', '>=', Kegiatan::sekarangLokal()->toDateString())
             ->count();

@@ -60,6 +60,12 @@ export default function JadwalSholatPage() {
   // mengisikannya ke kolom waktu justru mengosongkan kolomnya.
   const [hitungan, setHitungan] = useState<Record<string, Date>>({});
 
+  /** "kelompok:7" dan sejenisnya — dipakai mencocokkan jadwal dengan wilayah terpilih. */
+  const targetDari = (j: JadwalRutin) =>
+    j.kelompok ? `kelompok:${j.kelompok.id}`
+      : j.desa ? `desa:${j.desa.id}`
+        : j.daerah ? `daerah:${j.daerah.id}` : "";
+
   const muat = useCallback(async () => {
     try {
       const [res, koordinat] = await Promise.all([
@@ -70,9 +76,17 @@ export default function JadwalSholatPage() {
       const semua = res.data;
       setJadwals(semua);
 
+      // Wilayah yang dipakai mencocokkan: pilihan yang sedang aktif, atau — waktu halaman
+      // baru dibuka — wilayah jadwal sholat pertama yang terlihat oleh akun ini.
+      const pertama = semua.find((j) => j.sholat);
+      const wilayah = target || (pertama ? targetDari(pertama) : "");
+
       const awal: Record<string, Baris> = {};
       for (const s of SHOLAT) {
-        const punya = semua.find((j) => j.sholat === s.kunci);
+        // Wilayahnya ikut dicocokkan. Akun desa melihat jadwal sholat desanya sendiri dan
+        // jadwal daerah sekaligus; tanpa ini yang terambil mana yang kebetulan lebih dulu,
+        // dan yang tersunting bisa jadi milik wilayah lain.
+        const punya = semua.find((j) => j.sholat === s.kunci && targetDari(j) === wilayah);
         awal[s.kunci] = punya
           ? {
             mulai: punya.jam_mulai.slice(0, 5),
@@ -83,12 +97,7 @@ export default function JadwalSholatPage() {
       }
       setIsi(awal);
 
-      const pertama = semua.find((j) => j.sholat);
-      if (pertama) {
-        setTarget(pertama.kelompok ? `kelompok:${pertama.kelompok.id}`
-          : pertama.desa ? `desa:${pertama.desa.id}`
-            : pertama.daerah ? `daerah:${pertama.daerah.id}` : "");
-      }
+      if (wilayah && wilayah !== target) setTarget(wilayah);
 
       const waktu = jadwalSholat(koordinat ?? "-7.8166,112.0114");
       setHitungan(Object.fromEntries(waktu.map((w, i) => [SHOLAT[i].kunci, w.waktu])));
@@ -97,7 +106,8 @@ export default function JadwalSholatPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // Ikut target: berganti wilayah berarti isiannya dimuat ulang untuk wilayah itu.
+  }, [target]);
 
   // Ditunda satu microtask: memanggil setState langsung di badan effect memicu render
   // beruntun, dan aturan react-hooks menolaknya.
@@ -150,7 +160,7 @@ export default function JadwalSholatPage() {
           aktif: true,
         };
 
-        const punya = jadwals.find((j) => j.sholat === s.kunci);
+        const punya = jadwals.find((j) => j.sholat === s.kunci && targetDari(j) === target);
         const res = punya
           ? await api(`/jadwal-rutins/${punya.id}`, { method: "PUT", body: JSON.stringify(muatan) })
           : await api("/jadwal-rutins", { method: "POST", body: JSON.stringify(muatan) });

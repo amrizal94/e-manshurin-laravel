@@ -139,6 +139,7 @@ class KegiatanController extends Controller
     public function update(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         $this->assertVisible($request, $kegiatan);
+        $this->assertMilikWilayahSendiri($request->user(), $kegiatan);
         $data = $this->dataTervalidasi($request);
         $this->assertTarget($request->user(), $data);
         $this->assertTidakBentrok(new Kegiatan($data), $kegiatan->id);
@@ -150,6 +151,7 @@ class KegiatanController extends Controller
     public function destroy(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         $this->assertVisible($request, $kegiatan);
+        $this->assertMilikWilayahSendiri($request->user(), $kegiatan);
         $kegiatan->delete();
 
         return response()->json(['success' => true, 'message' => 'Kegiatan dihapus', 'data' => null]);
@@ -164,6 +166,7 @@ class KegiatanController extends Controller
     public function libur(Request $request, Kegiatan $kegiatan): JsonResponse
     {
         $this->assertVisible($request, $kegiatan);
+        $this->assertMilikWilayahSendiri($request->user(), $kegiatan);
 
         $data = $request->validate([
             'libur' => ['required', 'boolean'],
