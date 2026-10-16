@@ -109,7 +109,7 @@ export default function WajahPage() {
   const [uploading, setUploading] = useState(false);
   // Tiap foto menunggu face-service (timeout 15 detik di backend). Tanpa angka,
   // tombol diam belasan detik dan petugas mengira halamannya menggantung.
-  const [progres, setProgres] = useState("");
+  const [antre, setAntre] = useState<{ ke: number; dari: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [kamera, setKamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -129,6 +129,34 @@ export default function WajahPage() {
   }, [id]);
 
   useEffect(reload, [reload]);
+
+  /**
+   * Keluar di tengah pengiriman membuang foto yang belum terkirim tanpa jejak. Dua jalur
+   * keluar yang berbeda, jadi dua penjaga: menutup atau memuat ulang halaman ditangkap
+   * browser, sedangkan pindah lewat menu di dalam aplikasi tidak pernah memuat ulang
+   * halaman — jadi klik tautannya sendiri yang dicegat.
+   */
+  useEffect(() => {
+    if (!uploading) return;
+
+    const tanya = (e: BeforeUnloadEvent) => e.preventDefault();
+    const cegat = (e: MouseEvent) => {
+      const tautan = (e.target as HTMLElement | null)?.closest?.("a");
+
+      if (!tautan || confirm("Masih ada foto yang sedang dikirim. Tinggalkan halaman ini?")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    window.addEventListener("beforeunload", tanya);
+    document.addEventListener("click", cegat, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", tanya);
+      document.removeEventListener("click", cegat, true);
+    };
+  }, [uploading]);
 
   /** Alamat sementara itu menahan berkasnya di memori sampai dilepas — 10 MB per foto. */
   function tutupHasil() {
@@ -172,7 +200,7 @@ export default function WajahPage() {
     const catatan: Hasil[] = [];
 
     for (const [i, asli] of fotos.entries()) {
-      setProgres(fotos.length > 1 ? ` ${i + 1}/${fotos.length}` : "");
+      setAntre({ ke: i + 1, dari: fotos.length });
       try {
         // Gagal dikecilkan bukan alasan berhenti: server menerima sampai 15 MB dan
         // mengecilkannya sendiri. Yang penting halaman ini tidak ikut membuka gambarnya.
@@ -201,7 +229,7 @@ export default function WajahPage() {
       setHasil([...catatan]);
     }
 
-    setProgres("");
+    setAntre(null);
     setUploading(false);
     reload();
   }
@@ -235,6 +263,23 @@ export default function WajahPage() {
         Foto dari galeri HP sering berukuran besar dan bisa membuat halaman tertutup sendiri.
         Paling aman pakai <strong>Pakai Kamera</strong> — memotret langsung di sini.
       </p>
+
+      {/* Tulisan kecil di tombol tidak cukup: petugas memotret sambil berdiri, dan tiga
+          foto bisa makan satu menit karena tiap foto menunggu face-service. */}
+      {uploading && (
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3">
+          <p className="text-sm font-semibold text-emerald-900">
+            Mengirim foto {antre?.ke ?? 1} dari {antre?.dari ?? 1}...
+          </p>
+          <div className="mt-2 h-2 overflow-hidden rounded bg-emerald-100">
+            <div
+              className="h-full animate-pulse bg-emerald-600 transition-all duration-300"
+              style={{ width: `${(((antre?.ke ?? 1) - 1) / (antre?.dari ?? 1)) * 100}%`, minWidth: 8 }}
+            />
+          </div>
+          <p className="mt-1 text-xs text-emerald-800">Jangan tutup atau pindah halaman dulu.</p>
+        </div>
+      )}
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
@@ -275,7 +320,9 @@ export default function WajahPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="inline-block cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-          {uploading ? `Memproses${progres}...` : "+ Ambil / Pilih Foto"}
+          {uploading
+            ? `Memproses${antre && antre.dari > 1 ? ` ${antre.ke}/${antre.dari}` : ""}...`
+            : "+ Ambil / Pilih Foto"}
           <input
             type="file"
             accept="image/*"
