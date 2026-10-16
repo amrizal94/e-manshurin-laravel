@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useKonfirmasi } from "@/components/Konfirmasi";
 import { ROLE_LABEL } from "@/lib/labels";
+import { Pagination } from "@/components/Pagination";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Opsi { id: number; nama: string }
@@ -31,14 +32,41 @@ export default function PenggunaPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [lihatPassword, setLihatPassword] = useState(false);
+  // Tiap wilayah punya akun Absensi dan Admin, jadi daftarnya tumbuh lurus dengan jumlah
+  // kelompok. Yang dicari petugas selalu satu akun, bukan seluruh daftarnya.
+  const [cari, setCari] = useState("");
+  const [cariTunda, setCariTunda] = useState("");
+  const [peran, setPeran] = useState("");
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setCariTunda(cari);
+      setPage(1);
+    }, 300);
+
+    return () => clearTimeout(t);
+  }, [cari]);
 
   const reload = useCallback(() => {
     Promise.resolve().then(() => setLoading(true)); // defer 1 microtask: react-hooks/set-state-in-effect gak suka setState sinkron di body effect
-    api<Pengguna[]>("/users")
-      .then((res) => setRows(res.data))
+
+    const params = new URLSearchParams({ page: String(page) });
+    if (cariTunda) params.set("search", cariTunda);
+    if (peran) params.set("peran", peran);
+
+    api<{ data: Pengguna[]; last_page: number; total: number }>(`/users?${params}`)
+      .then((res) => {
+        setRows(res.data.data);
+        setLastPage(res.data.last_page);
+        setTotal(res.data.total);
+        if (page > res.data.last_page) setPage(res.data.last_page);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [page, cariTunda, peran]);
 
   useEffect(reload, [reload]);
   useEffect(() => {
@@ -115,6 +143,26 @@ export default function PenggunaPage() {
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
 
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          placeholder="Cari nama, email, atau wilayah..."
+          value={cari}
+          onChange={(e) => setCari(e.target.value)}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-72"
+        />
+        <select
+          aria-label="Filter peran"
+          value={peran}
+          onChange={(e) => { setPeran(e.target.value); setPage(1); }}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none sm:w-48"
+        >
+          <option value="">Semua Peran</option>
+          {Object.entries(ROLE_LABEL).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="space-y-2 sm:hidden">
         {loading && (
           <p className="rounded-xl border border-gray-200 bg-white p-6 text-center text-gray-400">Memuat...</p>
@@ -183,6 +231,15 @@ export default function PenggunaPage() {
           </tbody>
         </table>
       </div>
+
+      {!loading && total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-500">
+          <span>
+            Menampilkan {(page - 1) * 25 + 1}–{Math.min(page * 25, total)} dari {total} pengguna
+          </span>
+          <Pagination page={page} lastPage={lastPage} onChange={setPage} />
+        </div>
+      )}
 
       {form && (
         <div className="fixed inset-0 z-10 flex items-start justify-center overflow-y-auto bg-black/30 p-4">

@@ -48,11 +48,32 @@ class UserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        // Tiap wilayah punya dua akun, Absensi dan Admin, jadi daftarnya tumbuh lurus
+        // dengan jumlah kelompok — 120 baris sekarang. Yang dicari petugas selalu satu,
+        // misalnya "akun absensi Kelompok Beji", jadi disaring dan dihalaman di server.
         $users = User::visibleTo($request->user())
             ->with('roles:id,name', 'daerah:id,nama', 'desa:id,nama', 'kelompok:id,nama')
+            ->when(
+                $request->filled('peran'),
+                fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', $request->string('peran')))
+            )
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $kata = '%'.mb_strtolower((string) $request->string('search')).'%';
+
+                // Nama wilayah ikut dicari: petugas mengingat "Beji", bukan alamat emailnya.
+                $q->where(function ($w) use ($kata) {
+                    $w->whereRaw('LOWER(name) like ?', [$kata])
+                        ->orWhereRaw('LOWER(email) like ?', [$kata]);
+
+                    foreach (['daerah', 'desa', 'kelompok'] as $wilayah) {
+                        $w->orWhereHas($wilayah, fn ($r) => $r->whereRaw('LOWER(nama) like ?', [$kata]));
+                    }
+                });
+            })
             ->orderBy('name')
-            ->get()
-            ->makeVisible(['daerah_id', 'desa_id', 'kelompok_id']);
+            ->paginate($request->integer('per_page', 25));
+
+        $users->getCollection()->makeVisible(['daerah_id', 'desa_id', 'kelompok_id']);
 
         return response()->json(['success' => true, 'message' => 'OK', 'data' => $users]);
     }

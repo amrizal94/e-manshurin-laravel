@@ -93,9 +93,35 @@ class UserApiTest extends TestCase
         $adminKelompok->assignRole('admin');
 
         $response = $this->actingAs($adminKelompok)->getJson('/api/users')->assertOk();
-        $emails = collect($response->json('data'))->pluck('email');
+        // Daftarnya berhalaman sejak 120-an akun: barisnya ada di data.data.
+        $emails = collect($response->json('data.data'))->pluck('email');
         $this->assertTrue($emails->contains($adminKelompok->email));
         $this->assertFalse($emails->contains($adminKelompokLain->email));
+    }
+
+    /**
+     * Tiap wilayah punya akun Absensi dan Admin, jadi daftarnya tumbuh lurus dengan jumlah
+     * kelompok. Yang dicari petugas selalu satu akun, bukan seluruh daftarnya.
+     */
+    public function test_daftar_pengguna_bisa_disaring_dan_dicari(): void
+    {
+        $absensi = User::factory()->create(['name' => 'Absensi Kelompok Beji', 'kelompok_id' => $this->kelompok->id]);
+        $absensi->assignRole('absensi');
+
+        $admin = User::factory()->create(['name' => 'Admin Kelompok Beji', 'kelompok_id' => $this->kelompok->id]);
+        $admin->assignRole('admin');
+
+        $nama = fn (string $kueri) => collect(
+            $this->actingAs($this->superAdmin)->getJson("/api/users?{$kueri}")->assertOk()->json('data.data')
+        )->pluck('name');
+
+        $this->assertTrue($nama('peran=absensi')->contains('Absensi Kelompok Beji'));
+        $this->assertFalse($nama('peran=absensi')->contains('Admin Kelompok Beji'));
+
+        // Dicari lewat nama wilayahnya, bukan nama akun: itu yang diingat petugas.
+        $lewatWilayah = $nama('search='.urlencode($this->kelompok->nama));
+        $this->assertTrue($lewatWilayah->contains('Absensi Kelompok Beji'));
+        $this->assertTrue($lewatWilayah->contains('Admin Kelompok Beji'));
     }
 
     public function test_update_password_opsional(): void
