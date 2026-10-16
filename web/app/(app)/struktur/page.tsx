@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
 interface Daerah { id: number; nama: string; desas_count: number }
@@ -11,6 +12,7 @@ interface Kelompok { id: number; nama: string; desa_id: number; desa?: { nama: s
 type Level = "daerah" | "desa" | "kelompok";
 
 export default function StrukturPage() {
+  const tanya = useKonfirmasi();
   useRoleGuard(["super_admin", "admin"]);
   const [daerahs, setDaerahs] = useState<Daerah[]>([]);
   const [desas, setDesas] = useState<Desa[]>([]);
@@ -59,8 +61,9 @@ export default function StrukturPage() {
   }
 
   function bukaTambah(level: Level) {
-    if (level === "desa" && !daerahs.length) return alert("Buat daerah dulu");
-    if (level === "kelompok" && !desas.length) return alert("Buat desa dulu");
+    // Bukan pertanyaan, cuma pemberitahuan — dipasang di tempat yang sama dengan galat lain.
+    if (level === "desa" && !daerahs.length) return setError("Buat daerah dulu");
+    if (level === "kelompok" && !desas.length) return setError("Buat desa dulu");
     if (level === "desa" && daerahId === "") setDaerahId(daerahs[0].id);
     if (level === "kelompok" && desaId === "") setDesaId(desas[0].id);
     setModal(level);
@@ -151,8 +154,8 @@ export default function StrukturPage() {
                   >Edit</button>
                   <button
                     className="text-xs text-red-400 hover:text-red-700"
-                    onClick={() => {
-                      if (confirm(`Hapus daerah "${d.nama}" beserta seluruh isinya?`))
+                    onClick={async () => {
+                      if (await tanya({ pesan: `Hapus daerah "${d.nama}"?`, keterangan: "Desa, kelompok, dan jamaah di dalamnya ikut terhapus.", bahaya: true }))
                         run(() => api(`/daerahs/${d.id}`, { method: "DELETE" }));
                     }}
                   >Hapus</button>
@@ -187,10 +190,10 @@ export default function StrukturPage() {
                         >Edit</button>
                         <button
                           className="text-xs text-red-400 hover:text-red-700"
-                          onClick={() => {
-                            if (confirm(`Hapus desa "${d.nama}" beserta seluruh isinya?`))
-                              run(() => api(`/desas/${d.id}`, { method: "DELETE" }));
-                          }}
+                          onClick={async () => {
+                      if (await tanya({ pesan: `Hapus desa "${d.nama}"?`, keterangan: "Kelompok dan jamaah di dalamnya ikut terhapus.", bahaya: true }))
+                        run(() => api(`/desas/${d.id}`, { method: "DELETE" }));
+                    }}
                         >Hapus</button>
                       </span>
                     </li>
@@ -226,10 +229,10 @@ export default function StrukturPage() {
                         >Edit</button>
                         <button
                           className="text-xs text-red-400 hover:text-red-700"
-                          onClick={() => {
-                            if (confirm(`Hapus kelompok "${k.nama}"?`))
-                              run(() => api(`/kelompoks/${k.id}`, { method: "DELETE" }));
-                          }}
+                          onClick={async () => {
+                      if (await tanya({ pesan: `Hapus kelompok "${k.nama}"?`, keterangan: "Jamaah di kelompok ini ikut terhapus.", bahaya: true }))
+                        run(() => api(`/kelompoks/${k.id}`, { method: "DELETE" }));
+                    }}
                         >Hapus</button>
                       </span>
                     </li>

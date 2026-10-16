@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { JENIS_PENGAJIAN } from "@/lib/labels";
 import { Pagination } from "@/components/Pagination";
 
@@ -46,6 +47,7 @@ function tambahHari(tanggal: string, hari: number) {
 }
 
 export default function KegiatanPage() {
+  const tanya = useKonfirmasi();
   const [rows, setRows] = useState<Kegiatan[]>([]);
   const [daerahs, setDaerahs] = useState<Opsi[]>([]);
   const [desas, setDesas] = useState<Opsi[]>([]);
@@ -181,7 +183,7 @@ Keterangan (boleh dikosongkan):`, "");
   }
 
   async function hapus(k: Kegiatan) {
-    if (!confirm(`Hapus kegiatan "${k.nama}"?`)) return;
+    if (!(await tanya({ pesan: `Hapus kegiatan "${k.nama}"?`, keterangan: "Absensi yang sudah tercatat di kegiatan ini ikut terhapus.", bahaya: true }))) return;
     try {
       await api(`/kegiatans/${k.id}`, { method: "DELETE" });
       reload();

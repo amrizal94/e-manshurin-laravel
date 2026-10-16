@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { JENIS_PENGAJIAN } from "@/lib/labels";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
@@ -30,6 +31,7 @@ const KOSONG = {
 };
 
 export default function JadwalRutinPage() {
+  const tanya = useKonfirmasi();
   useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<JadwalRutin[]>([]);
   const [daerahs, setDaerahs] = useState<Opsi[]>([]);
@@ -116,7 +118,7 @@ export default function JadwalRutinPage() {
   }
 
   async function hapus(j: JadwalRutin) {
-    if (!confirm(`Hapus jadwal "${j.nama}"?\n\nKegiatan yang sudah terbit tetap ada.`)) return;
+    if (!(await tanya({ pesan: `Hapus jadwal "${j.nama}"?`, keterangan: "Kegiatan yang sudah terbit dari jadwal ini tetap ada.", bahaya: true }))) return;
     try {
       const res = await api<unknown>(`/jadwal-rutins/${j.id}`, { method: "DELETE" });
       setKabar(res.message);

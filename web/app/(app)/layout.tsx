@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { PenyediaKonfirmasi, useKonfirmasi } from "@/components/Konfirmasi";
 import { api } from "@/lib/api";
 
 interface StoredUser {
@@ -24,7 +25,16 @@ const NAV = [
   { href: "/activity-log", label: "Log Aktivitas", roles: ["super_admin"] },
 ];
 
+/** Penyedia dialog dipasang di luar kerangkanya — kerangka itu sendiri ikut memakainya. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PenyediaKonfirmasi>
+      <Kerangka>{children}</Kerangka>
+    </PenyediaKonfirmasi>
+  );
+}
+
+function Kerangka({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<StoredUser | null>(null);
@@ -45,8 +55,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     Promise.resolve().then(() => setNavOpen(false));
   }, [pathname]);
 
+  const tanya = useKonfirmasi();
+
   async function logout() {
-    if (!confirm("Yakin ingin keluar?")) return;
+    if (!(await tanya({ pesan: "Keluar dari E-Manshurin?", tombol: "Keluar" }))) return;
     try {
       await api("/auth/logout", { method: "POST" });
     } catch {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { ROLE_LABEL } from "@/lib/labels";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
@@ -19,6 +20,7 @@ interface Pengguna {
 const KOSONG = { name: "", email: "", password: "", role: "absensi", target: "semua" };
 
 export default function PenggunaPage() {
+  const tanya = useKonfirmasi();
   useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Pengguna[]>([]);
   const [daerahs, setDaerahs] = useState<Opsi[]>([]);
@@ -89,7 +91,7 @@ export default function PenggunaPage() {
   }
 
   async function hapus(u: Pengguna) {
-    if (!confirm(`Hapus pengguna "${u.name}"?`)) return;
+    if (!(await tanya({ pesan: `Hapus pengguna "${u.name}"?`, keterangan: "Akunnya tidak bisa dipakai masuk lagi. Data jamaah dan absensi tidak terpengaruh.", bahaya: true }))) return;
     try {
       await api(`/users/${u.id}`, { method: "DELETE" });
       reload();

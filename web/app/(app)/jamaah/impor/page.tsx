@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, unduh } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { KATEGORI_USIA } from "@/lib/labels";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
@@ -57,6 +58,7 @@ const LABEL_STATUS: Record<Baris["status"], string> = {
 };
 
 export default function ImporJamaahPage() {
+  const tanya = useKonfirmasi();
   useRoleGuard(["super_admin", "admin"]);
   const [kelompoks, setKelompoks] = useState<Kelompok[]>([]);
   const [hasil, setHasil] = useState<Hasil | null>(null);
@@ -106,7 +108,7 @@ export default function ImporJamaahPage() {
     const file = fileRef.current?.files?.[0];
     if (!file || !hasil) return;
     const jumlah = hasil.ringkasan.total - (lewatiKembar ? hasil.ringkasan.kembar : 0);
-    if (!confirm(`Simpan ${jumlah} jamaah ke database?\n\nBisa dibatalkan sekaligus setelah ini, selama belum ada yang diabsen.`)) return;
+    if (!(await tanya({ pesan: `Simpan ${jumlah} jamaah?`, keterangan: "Bisa dibatalkan sekaligus setelah ini, selama belum ada yang diabsen.", tombol: "Simpan" }))) return;
 
     setError("");
     setSibuk(true);
@@ -126,7 +128,7 @@ export default function ImporJamaahPage() {
 
   async function batal() {
     if (!impor) return;
-    if (!confirm(`Hapus ${impor.disimpan} jamaah yang baru saja diimpor?`)) return;
+    if (!(await tanya({ pesan: `Hapus ${impor.disimpan} jamaah yang baru saja diimpor?`, keterangan: "Hanya jamaah dari impor ini yang dihapus.", bahaya: true }))) return;
 
     setError("");
     setSibuk(true);

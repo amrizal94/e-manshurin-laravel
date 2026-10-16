@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { useKamera } from "@/lib/useKamera";
 import { useRoleGuard } from "@/lib/useRoleGuard";
 
@@ -101,6 +102,8 @@ interface Jamaah { id: number; nama_lengkap: string; photos: Foto[] }
 export default function WajahPage() {
   useRoleGuard(["super_admin", "admin"]);
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const tanya = useKonfirmasi();
   const [jamaah, setJamaah] = useState<Jamaah | null>(null);
   // Hasil per foto, bukan satu pesan. Dengan tiga foto sekaligus, satu baris pesan
   // selalu berbohong tentang dua foto lainnya.
@@ -139,24 +142,33 @@ export default function WajahPage() {
   useEffect(() => {
     if (!uploading) return;
 
-    const tanya = (e: BeforeUnloadEvent) => e.preventDefault();
+    const cegahTutup = (e: BeforeUnloadEvent) => e.preventDefault();
     const cegat = (e: MouseEvent) => {
       const tautan = (e.target as HTMLElement | null)?.closest?.("a");
+      const tujuan = tautan?.getAttribute("href");
 
-      if (!tautan || confirm("Masih ada foto yang sedang dikirim. Tinggalkan halaman ini?")) return;
+      if (!tujuan) return;
 
+      // Dihentikan dulu: menunggu jawaban tidak bisa dilakukan di tengah penanganan klik.
+      // Kalau diizinkan, halamannya yang memindahkan sendiri.
       e.preventDefault();
       e.stopPropagation();
+
+      tanya({
+        pesan: "Masih ada foto yang sedang dikirim.",
+        keterangan: "Foto yang belum terkirim akan hilang kalau halaman ini ditinggalkan sekarang.",
+        tombol: "Tinggalkan",
+      }).then((ya) => ya && router.push(tujuan));
     };
 
-    window.addEventListener("beforeunload", tanya);
+    window.addEventListener("beforeunload", cegahTutup);
     document.addEventListener("click", cegat, true);
 
     return () => {
-      window.removeEventListener("beforeunload", tanya);
+      window.removeEventListener("beforeunload", cegahTutup);
       document.removeEventListener("click", cegat, true);
     };
-  }, [uploading]);
+  }, [uploading, router, tanya]);
 
   /** Alamat sementara itu menahan berkasnya di memori sampai dilepas — 10 MB per foto. */
   function tutupHasil() {
@@ -235,7 +247,7 @@ export default function WajahPage() {
   }
 
   async function hapus(foto: Foto) {
-    if (!confirm("Hapus foto ini beserta data wajahnya?")) return;
+    if (!(await tanya({ pesan: "Hapus foto ini?", keterangan: "Data wajah dari foto ini ikut terhapus, dan jamaahnya bisa jadi kurang dari 3 foto.", bahaya: true }))) return;
     try {
       await api(`/jamaahs/${id}/photos/${foto.id}`, { method: "DELETE" });
       reload();

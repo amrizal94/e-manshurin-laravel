@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, unduh } from "@/lib/api";
+import { useKonfirmasi } from "@/components/Konfirmasi";
 import { KATEGORI_USIA, STATUS_KK } from "@/lib/labels";
 import { Pagination } from "@/components/Pagination";
 import { useRoleGuard } from "@/lib/useRoleGuard";
@@ -124,6 +125,7 @@ const KOSONG = {
 };
 
 export default function JamaahPage() {
+  const tanya = useKonfirmasi();
   useRoleGuard(["super_admin", "admin"]);
   const [rows, setRows] = useState<Jamaah[]>([]);
   const [keluargas, setKeluargas] = useState<Keluarga[]>([]);
@@ -415,7 +417,11 @@ export default function JamaahPage() {
 
     const dimana = kembar.map((j) => j.kelompok?.nama ?? "kelompok lain").join(", ");
 
-    return confirm(`Sudah ada jamaah bernama "${nama}" di ${dimana}.\n\nYakin ini orang yang berbeda?`);
+    return tanya({
+      pesan: `Sudah ada jamaah bernama "${nama}" di ${dimana}.`,
+      keterangan: "Yakin ini orang yang berbeda? Satu orang yang terdaftar dua kali akan muncul dua kali juga di daftar peserta dan rekap.",
+      tombol: "Orang berbeda",
+    });
   }
 
   async function simpan(e: React.SyntheticEvent, lanjut = false) {
@@ -466,7 +472,7 @@ export default function JamaahPage() {
   }
 
   async function hapus(j: Jamaah) {
-    if (!confirm(`Hapus jamaah "${j.nama_lengkap}"?`)) return;
+    if (!(await tanya({ pesan: `Hapus jamaah "${j.nama_lengkap}"?`, keterangan: "Foto wajah dan riwayat absensinya ikut terhapus.", bahaya: true }))) return;
     try {
       await api(`/jamaahs/${j.id}`, { method: "DELETE" });
       reload();
