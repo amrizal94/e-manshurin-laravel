@@ -12,8 +12,11 @@ use App\Support\FotoWajahJanggal;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FaceController extends Controller
 {
@@ -58,11 +61,111 @@ class FaceController extends Controller
         ]);
     }
 
+    /** Sisi terpanjang foto yang disimpan. Descriptor-nya sudah diambil dari foto asli. */
+    private const MAKS_SISI = 1280;
+
+    /**
+     * Simpan fotonya dalam ukuran wajar.
+     *
+     * Yang dikirim bisa 11 MB langsung dari kamera HP, karena mengecilkan di HP itulah
+     * yang membuat halamannya mati. Jadi server yang mengecilkan. Kalau gagal — format
+     * yang tidak dikenal GD, atau gambarnya kelewat besar — fotonya disimpan apa adanya:
+     * descriptor-nya sudah terlanjur benar, dan menolak di titik ini cuma membuang
+     * pekerjaan yang sudah berhasil.
+     */
+    private function simpanFoto(UploadedFile $berkas, Jamaah $jamaah): string
+    {
+        $kecil = $this->kecilkan($berkas);
+
+        if ($kecil === null) {
+            return $berkas->store("jamaah/{$jamaah->id}", 'public');
+        }
+
+        $path = "jamaah/{$jamaah->id}/".Str::random(40).'.jpg';
+        Storage::disk('public')->put($path, $kecil);
+
+        return $path;
+    }
+
+    /** @return string|null JPEG hasil pengecilan, atau null kalau tidak perlu/tidak bisa */
+    private function kecilkan(UploadedFile $berkas): ?string
+    {
+        $jalur = $berkas->getRealPath();
+        $info = @getimagesize($jalur);
+
+        if ($info === false) {
+            return null;
+        }
+
+        [$lebar, $tinggi] = $info;
+        $skala = min(1, self::MAKS_SISI / max($lebar, $tinggi));
+
+        if ($skala >= 1) {
+            return null;
+        }
+
+        // GD memegang 4 byte per piksel, dan sempat memegang dua gambar sekaligus saat
+        // menyusut. memory_limit bawaan 128 MB tidak cukup untuk kamera 50 MP, dan yang
+        // terjadi bukan error melainkan proses mati di tengah jalan.
+        $butuh = (int) ceil($lebar * $tinggi * 4 * 2.2 / 1048576) + 64;
+        ini_set('memory_limit', max(256, $butuh).'M');
+
+        $sumber = @imagecreatefromstring(file_get_contents($jalur));
+
+        if ($sumber === false) {
+            return null;
+        }
+
+        $hasil = imagescale($sumber, (int) round($lebar * $skala), (int) round($tinggi * $skala));
+        imagedestroy($sumber);
+
+        if ($hasil === false) {
+            return null;
+        }
+
+        // Kamera HP menyimpan arah foto di EXIF, bukan di pikselnya; GD membuang EXIF,
+        // jadi tanpa ini foto potret tersimpan miring 90 derajat.
+        $hasil = $this->luruskan($hasil, $jalur);
+
+        ob_start();
+        imagejpeg($hasil, null, 88);
+        imagedestroy($hasil);
+
+        return ob_get_clean() ?: null;
+    }
+
+    /** @param  \GdImage  $gambar */
+    private function luruskan($gambar, string $jalur)
+    {
+        if (! function_exists('exif_read_data')) {
+            return $gambar;
+        }
+
+        $sudut = match (@exif_read_data($jalur)['Orientation'] ?? 1) {
+            3 => 180,
+            6 => -90,
+            8 => 90,
+            default => 0,
+        };
+
+        if ($sudut === 0) {
+            return $gambar;
+        }
+
+        $diputar = imagerotate($gambar, $sudut, 0);
+        imagedestroy($gambar);
+
+        return $diputar;
+    }
+
     /** Enroll wajah jamaah: simpan foto + descriptor. Minimal 3 foto sesuai rencana. */
     public function enroll(Request $request, Jamaah $jamaah): JsonResponse
     {
         abort_unless(Jamaah::visibleTo($request->user())->whereKey($jamaah->id)->exists(), 403);
-        $request->validate(['photo' => ['required', 'image', 'max:5120']]);
+        // 15 MB, bukan 5: HP yang tidak sanggup mengecilkan fotonya sendiri harus tetap bisa
+        // mengirim apa adanya — mengecilkan di HP itulah yang membuat halamannya mati.
+        // Server mengizinkan sampai 50 MB, jadi tidak ada yang perlu disetel di sana.
+        $request->validate(['photo' => ['required', 'image', 'max:15360']]);
 
         $extracted = $this->extract($request);
 
@@ -88,8 +191,9 @@ class FaceController extends Controller
             }
         }
 
-        $path = $request->file('photo')->store("jamaah/{$jamaah->id}", 'public');
-        $photo = $jamaah->photos()->create(['path' => $path]);
+        $photo = $jamaah->photos()->create([
+            'path' => $this->simpanFoto($request->file('photo'), $jamaah),
+        ]);
 
         JamaahFaceDescriptor::create([
             'jamaah_id' => $jamaah->id,

@@ -16,67 +16,81 @@ const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/ap
  */
 const MAKS_SISI = 1280;
 
-/** Batas kirim backend. File di atas ini tidak ada gunanya dicoba. */
-const MAKS_KIRIM = 5 * 1024 * 1024;
-
-/** Di atas segini pasti foto kamera, jadi pasti lebih lebar dari MAKS_SISI. */
-const PASTI_BESAR = 1024 * 1024;
+/** Batas kirim backend. Di atas ini tidak ada gunanya dicoba. */
+const MAKS_KIRIM = 15 * 1024 * 1024;
 
 /**
- * Pembacaan gambar di HP bisa menggantung tanpa pernah gagal. Tanpa batas ini tombolnya
- * diam di "Memproses..." selamanya dan petugas tidak pernah tahu apa yang terjadi.
+ * Pengecilan foto, dijalankan di pekerja terpisah.
+ *
+ * Membuka foto 50 MP perlu ratusan megabyte, dan di HP itu bisa mematikan seluruh
+ * halaman — layar hitam, alamat kosong, tidak ada pesan apa pun, dan tidak ada satu pun
+ * permintaan yang terkirim. Di pekerja terpisah, yang mati pekerjanya; halamannya hidup
+ * dan bisa melapor.
+ *
+ * Ditulis sebagai teks lalu dijalankan dari Blob, bukan berkas tersendiri: tidak perlu
+ * menyentuh setelan pembangun proyek demi dua puluh baris.
  */
-function batasiWaktu<T>(janji: Promise<T>, detik: number): Promise<T> {
-  return Promise.race([
-    janji,
-    new Promise<T>((_, tolak) =>
-      setTimeout(() => tolak(new Error(`tidak selesai dalam ${detik} detik`)), detik * 1000)
-    ),
-  ]);
-}
-
-/**
- * Kecilkan di browser sebelum kirim. Foto HP 12 MP menembus batas 5 MB backend dan
- * membuat unggahan lewat sinyal masjid bertele-tele, padahal yang dibutuhkan cuma
- * descriptor-nya. Storage server ikut ditolong: 200 jamaah x 3 foto itu giga-an.
- */
-async function kecilkan(file: File): Promise<File> {
+const KODE_PEKERJA = `
+self.onmessage = async (e) => {
+  const { file, maksSisi } = e.data;
   try {
-    // Foto 50 MP butuh ~200 MB memori kalau dibuka utuh dulu, dan di HP itu menggantung
-    // atau mematikan tab diam-diam — tidak ada permintaan yang terkirim, tidak ada pesan
-    // apa pun. resizeWidth menyuruh browser membaca langsung pada ukuran kecil.
-    // Tingginya menyesuaikan sendiri, jadi fotonya tidak gepeng.
-    const bitmap = await batasiWaktu(
-      createImageBitmap(file, file.size > PASTI_BESAR
-        ? { resizeWidth: MAKS_SISI, resizeQuality: "high" }
-        : undefined),
-      20
-    );
-    const skala = Math.min(1, MAKS_SISI / Math.max(bitmap.width, bitmap.height));
-    if (skala === 1) {
-      bitmap.close();
-      return file;
+    // resizeWidth menyuruh browser membaca langsung pada ukuran kecil. Sebagian browser
+    // mengabaikannya dan tetap membuka utuh — itu pun aman di sini, karena yang kehabisan
+    // memori cuma pekerja ini.
+    const besar = file.size > 1048576;
+    const bitmap = await createImageBitmap(file, besar ? { resizeWidth: maksSisi, resizeQuality: 'high' } : undefined);
+    const skala = Math.min(1, maksSisi / Math.max(bitmap.width, bitmap.height));
+    const lebar = Math.round(bitmap.width * skala);
+    const tinggi = Math.round(bitmap.height * skala);
+    const kanvas = new OffscreenCanvas(lebar, tinggi);
+    kanvas.getContext('2d').drawImage(bitmap, 0, 0, lebar, tinggi);
+    bitmap.close();
+    const blob = await kanvas.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
+    self.postMessage({ ok: true, blob });
+  } catch (err) {
+    self.postMessage({ ok: false });
+  }
+};
+`;
+
+/**
+ * Hasilnya null kalau gagal — browser lama tanpa OffscreenCanvas, pekerja yang mati
+ * kehabisan memori, atau format yang tidak terbaca. Pemanggilnya mengirim foto aslinya,
+ * dan server yang mengecilkan.
+ */
+function kecilkanDiPekerja(file: File, batasDetik = 25): Promise<File | null> {
+  return new Promise((selesai) => {
+    let alamat = "";
+    let pekerja: Worker;
+
+    try {
+      alamat = URL.createObjectURL(new Blob([KODE_PEKERJA], { type: "text/javascript" }));
+      pekerja = new Worker(alamat);
+    } catch {
+      if (alamat) URL.revokeObjectURL(alamat);
+
+      return selesai(null);
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * skala);
-    canvas.height = Math.round(bitmap.height * skala);
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+    const tutup = (hasil: File | null) => {
+      clearTimeout(jam);
+      pekerja.terminate();
+      URL.revokeObjectURL(alamat);
+      selesai(hasil);
+    };
 
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
-    if (!blob) return file;
+    // Pembacaan gambar di HP bisa menggantung tanpa pernah gagal. Tanpa batas ini tombolnya
+    // diam di "Memproses..." selamanya dan petugas tidak pernah tahu apa yang terjadi.
+    const jam = setTimeout(() => tutup(null), batasDetik * 1000);
 
-    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
-  } catch {
-    // Format yang tidak bisa dibaca browser — HEIC mentah dari iPhone, misalnya.
-    // Yang masih muat dikirim apa adanya, biar backend yang menjelaskan penolakannya.
-    if (file.size <= MAKS_KIRIM) return file;
+    pekerja.onmessage = (e: MessageEvent<{ ok: boolean; blob?: Blob }>) =>
+      tutup(e.data?.ok && e.data.blob
+        ? new File([e.data.blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" })
+        : null);
+    pekerja.onerror = () => tutup(null);
 
-    throw new Error(
-      `tidak bisa dikecilkan di perangkat ini, dan ${(file.size / 1024 / 1024).toFixed(1)} MB terlalu besar untuk dikirim apa adanya`
-    );
-  }
+    pekerja.postMessage({ file, maksSisi: MAKS_SISI });
+  });
 }
 
 interface Foto { id: number; path: string }
@@ -160,7 +174,16 @@ export default function WajahPage() {
     for (const [i, asli] of fotos.entries()) {
       setProgres(fotos.length > 1 ? ` ${i + 1}/${fotos.length}` : "");
       try {
-        const foto = await kecilkan(asli);
+        // Gagal dikecilkan bukan alasan berhenti: server menerima sampai 15 MB dan
+        // mengecilkannya sendiri. Yang penting halaman ini tidak ikut membuka gambarnya.
+        const foto = (await kecilkanDiPekerja(asli)) ?? asli;
+
+        if (foto.size > MAKS_KIRIM) {
+          throw new Error(
+            `ukurannya ${(foto.size / 1024 / 1024).toFixed(1)} MB, melebihi batas 15 MB. Pakai tombol "Pakai Kamera" untuk memotret langsung.`
+          );
+        }
+
         const body = new FormData();
         body.append("photo", foto, foto.name);
         const res = await api(`/jamaahs/${id}/face-enroll`, { method: "POST", body });
@@ -204,6 +227,13 @@ export default function WajahPage() {
       <p className="text-sm text-gray-500">
         {total} foto tersimpan. Minimal 3 foto untuk face recognition
         {total < 3 && ` (kurang ${3 - total})`}.
+      </p>
+
+      {/* Memilih dari galeri membuat HP meninggalkan halaman ini, dan foto 10 MB-an bikin
+          sistem membuang halamannya diam-diam. Kamera dalam halaman tidak punya risiko itu. */}
+      <p className="rounded-lg bg-gray-50 p-2 text-xs text-gray-600">
+        Foto dari galeri HP sering berukuran besar dan bisa membuat halaman tertutup sendiri.
+        Paling aman pakai <strong>Pakai Kamera</strong> — memotret langsung di sini.
       </p>
 
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}

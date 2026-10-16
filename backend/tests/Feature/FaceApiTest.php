@@ -164,6 +164,43 @@ class FaceApiTest extends TestCase
         $this->assertSame(2, $data[0]['jumlah_foto']);
     }
 
+    /**
+     * Foto besar dari HP dikecilkan di server, bukan di HP — mengecilkan di HP itulah yang
+     * membuat halamannya mati. Descriptor-nya tetap diambil dari foto asli.
+     */
+    public function test_enroll_mengecilkan_foto_besar_sebelum_menyimpan(): void
+    {
+        Http::fake(['*/extract' => Http::response(['descriptor' => $this->vektor(0), 'confidence' => 0.99])]);
+
+        $this->actingAs($this->admin)
+            ->post("/api/jamaahs/{$this->jamaah->id}/face-enroll", [
+                'photo' => UploadedFile::fake()->image('besar.jpg', 4000, 3000),
+            ])
+            ->assertCreated();
+
+        $path = $this->jamaah->photos()->first()->path;
+        [$lebar, $tinggi] = getimagesize(Storage::disk('public')->path($path));
+
+        $this->assertSame(1280, $lebar);
+        $this->assertSame(960, $tinggi);
+    }
+
+    /** Yang sudah kecil tidak diotak-atik: menyusutkan lagi cuma merusak tanpa menghemat. */
+    public function test_enroll_membiarkan_foto_yang_sudah_kecil(): void
+    {
+        Http::fake(['*/extract' => Http::response(['descriptor' => $this->vektor(0), 'confidence' => 0.99])]);
+
+        $this->actingAs($this->admin)
+            ->post("/api/jamaahs/{$this->jamaah->id}/face-enroll", [
+                'photo' => UploadedFile::fake()->image('kecil.jpg', 640, 480),
+            ])
+            ->assertCreated();
+
+        [$lebar] = getimagesize(Storage::disk('public')->path($this->jamaah->photos()->first()->path));
+
+        $this->assertSame(640, $lebar);
+    }
+
     /** Wajah yang sama tetap masuk walau posenya beda — skornya di atas ambang. */
     public function test_enroll_menerima_foto_kedua_dari_orang_yang_sama(): void
     {
