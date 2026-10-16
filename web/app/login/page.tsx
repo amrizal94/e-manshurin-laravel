@@ -56,7 +56,7 @@ function LoginForm() {
   return (
     <main className="ruang-kendali flex min-h-screen">
       <section className="relative hidden w-1/2 flex-col justify-center overflow-hidden px-16 lg:flex">
-        <Image src="/logo.png" alt="E-Manshurin" width={80} height={80} />
+        <Image src="/logo.png" alt="E-Manshurin" width={80} height={80} className="rounded-full bg-white p-0.5 ring-1 ring-[color:var(--garis)]" />
         <h1 className="judul-hud mt-6 text-3xl text-white">E-Manshurin</h1>
         <p className="mt-2 text-[color:var(--sian)]">
           Absensi Pengajian Berbasis Wajah
@@ -82,7 +82,7 @@ function LoginForm() {
               alt="E-Manshurin"
               width={64}
               height={64}
-              className="mx-auto"
+              className="mx-auto rounded-full bg-white p-0.5 ring-1 ring-[color:var(--garis)]"
             />
           </div>
           <div>

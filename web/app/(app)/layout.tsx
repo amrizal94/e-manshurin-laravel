@@ -75,7 +75,7 @@ function Kerangka({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="ruang-kendali flex min-h-screen">
       {navOpen && (
         <div
           className="fixed inset-0 z-20 bg-black/30 lg:hidden"
@@ -89,9 +89,9 @@ function Kerangka({ children }: { children: React.ReactNode }) {
         }`}
       >
         <div className="flex items-center gap-2 border-b border-gray-200 p-4">
-          <Image src="/logo.png" alt="" width={32} height={32} />
+          <Image src="/logo.png" alt="" width={32} height={32} className="rounded-full bg-white p-0.5 ring-1 ring-[color:var(--garis)]" />
           <div>
-            <h1 className="text-lg font-bold text-emerald-700">E-Manshurin</h1>
+            <h1 className="judul-hud text-base text-white">E-Manshurin</h1>
             <p className="truncate text-xs text-gray-500">{user?.name}</p>
           </div>
         </div>
@@ -131,8 +131,8 @@ function Kerangka({ children }: { children: React.ReactNode }) {
               <line x1="4" y1="18" x2="20" y2="18" />
             </svg>
           </button>
-          <Image src="/logo.png" alt="" width={28} height={28} />
-          <h1 className="text-base font-bold text-emerald-700">E-Manshurin</h1>
+          <Image src="/logo.png" alt="" width={28} height={28} className="rounded-full bg-white p-0.5 ring-1 ring-[color:var(--garis)]" />
+          <h1 className="judul-hud text-sm text-white">E-Manshurin</h1>
         </div>
 
         <main className="flex-1 overflow-x-auto p-4 sm:p-6">{children}</main>

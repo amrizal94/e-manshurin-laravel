@@ -21,9 +21,10 @@ interface DashboardData {
   kegiatan_bulan_ini: number;
 }
 
-// Slot 1 dan 2 palet kategorikal, lolos validator buta warna di atas putih.
-const LAKI = "#2a78d6";
-const PEREMPUAN = "#eb6834";
+// Slot 1 dan 2 palet kategorikal. Nilainya langkah versi gelap, karena latarnya sekarang
+// gelap — bukan membalik warna terangnya, melainkan langkah lain dari ramp yang sama.
+const LAKI = "var(--seri-1)";
+const PEREMPUAN = "var(--seri-2)";
 
 /**
  * Rentang bulan ini dalam waktu setempat, untuk link Kegiatan Bulan Ini. Backend

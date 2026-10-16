@@ -43,6 +43,10 @@ body {
   --sian: #00d4ff;
   --teks: #d9e8ff;
   --redup: #7f98b8;
+  --kuning: #ffc24b;
+  /* Dua warna seri grafik, langkah versi gelap dari palet yang sama. */
+  --seri-1: #3987e5;
+  --seri-2: #d95926;
 
   color: var(--teks);
   background-color: var(--latar);
@@ -108,6 +112,120 @@ body {
   letter-spacing: 0.04em;
 }
 
+/*
+ * Menggelapkan halaman kerja tanpa menyentuh 800-an kelas warna di 16 berkas.
+ *
+ * Kelasnya dibiarkan apa adanya, lalu dipetakan ulang di dalam .ruang-kendali. Satu
+ * tempat untuk diubah, satu tempat untuk dibatalkan, dan diff-nya puluhan baris alih-alih
+ * ribuan. Konsekuensi yang disengaja: nama kelasnya jadi tidak lagi menggambarkan
+ * warnanya — "bg-white" di sini berarti "permukaan kartu", bukan putih.
+ *
+ * Urutan penting: blok ini harus sesudah Tailwind, dan selektor dua-kelas ini lebih kuat
+ * daripada utilitasnya sendiri, jadi menang tanpa perlu !important.
+ */
+.ruang-kendali .bg-white {
+  background-color: rgba(10, 30, 54, 0.72);
+}
+
+.ruang-kendali .bg-gray-50,
+.ruang-kendali .bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.ruang-kendali .bg-gray-200,
+.ruang-kendali .bg-gray-300 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ruang-kendali .text-gray-900,
+.ruang-kendali .text-gray-800 {
+  color: #fff;
+}
+
+.ruang-kendali .text-gray-700,
+.ruang-kendali .text-gray-600 {
+  color: var(--teks);
+}
+
+.ruang-kendali .text-gray-500,
+.ruang-kendali .text-gray-400,
+.ruang-kendali .text-gray-300 {
+  color: var(--redup);
+}
+
+.ruang-kendali .border-gray-100,
+.ruang-kendali .border-gray-200,
+.ruang-kendali .border-gray-300 {
+  border-color: var(--garis);
+}
+
+.ruang-kendali .divide-gray-100 > * + * {
+  border-color: var(--garis);
+}
+
+/* Latar penanda: aslinya warna pucat untuk tulisan gelap, di sini jadi kaca berwarna. */
+.ruang-kendali .bg-emerald-50 {
+  background-color: rgba(46, 230, 166, 0.12);
+}
+
+.ruang-kendali .bg-amber-50 {
+  background-color: rgba(255, 194, 75, 0.12);
+}
+
+.ruang-kendali .bg-red-50 {
+  background-color: rgba(255, 77, 94, 0.12);
+}
+
+/* Tulisan pekat di atas latar pucat tadi — dinaikkan terangnya supaya tetap terbaca. */
+.ruang-kendali .text-emerald-900,
+.ruang-kendali .text-emerald-800,
+.ruang-kendali .text-emerald-700 {
+  color: #5ff0c0;
+}
+
+.ruang-kendali .text-amber-900,
+.ruang-kendali .text-amber-800,
+.ruang-kendali .text-amber-700 {
+  color: var(--kuning);
+}
+
+.ruang-kendali .text-red-700,
+.ruang-kendali .text-red-600 {
+  color: #ff8a95;
+}
+
+.ruang-kendali .border-emerald-300 {
+  border-color: rgba(46, 230, 166, 0.45);
+}
+
+.ruang-kendali .border-amber-300 {
+  border-color: rgba(255, 194, 75, 0.45);
+}
+
+/* Kotak isian: putih pekat di atas latar gelap menyilaukan, jadi dibuat tembus pandang. */
+.ruang-kendali input:not([type="checkbox"]):not([type="radio"]),
+.ruang-kendali select,
+.ruang-kendali textarea {
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+/* Daftar pilihan digambar sistem, bukan halaman — tanpa ini isinya putih di atas putih. */
+.ruang-kendali option {
+  background-color: #0a1e36;
+  color: #fff;
+}
+
+.ruang-kendali input::placeholder,
+.ruang-kendali textarea::placeholder {
+  color: var(--redup);
+}
+
+/* Yang menempel saat digulir harus ikut gelap, kalau tidak isinya tembus di belakangnya. */
+.ruang-kendali .sticky {
+  background-color: #061426;
+}
+
 /* Cetakan rekap: kolomnya satu per kegiatan, jadi sebulan pengajian tidak akan muat
    di kertas tegak. Isinya dikecilkan karena tiap sel cuma satu huruf. */
 @media print {
@@ -129,5 +247,32 @@ body {
 
   tr {
     break-inside: avoid;
+  }
+
+  /* Tema gelap dibatalkan saat mencetak: tinta hitam di kertas putih, bukan sebaliknya.
+     Tanpa ini satu halaman rekap menghabiskan setengah katrid. */
+  .ruang-kendali,
+  .ruang-kendali .bg-white,
+  .ruang-kendali .bg-gray-50,
+  .ruang-kendali .bg-gray-100,
+  .ruang-kendali .sticky {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+  }
+
+  .ruang-kendali .text-gray-900,
+  .ruang-kendali .text-gray-800,
+  .ruang-kendali .text-gray-700,
+  .ruang-kendali .text-gray-600,
+  .ruang-kendali .text-gray-500,
+  .ruang-kendali .text-gray-400 {
+    color: #000 !important;
+  }
+
+  .ruang-kendali .border-gray-100,
+  .ruang-kendali .border-gray-200,
+  .ruang-kendali .border-gray-300 {
+    border-color: #999 !important;
   }
 }

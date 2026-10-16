@@ -66,7 +66,9 @@ export function PenyediaKonfirmasi({ children }: { children: React.ReactNode }) 
           e.preventDefault();
           tutup(false);
         }}
-        className="max-w-[calc(100vw-2rem)] bg-transparent p-0 backdrop:bg-black/70 backdrop:backdrop-blur-sm"
+        // m-auto dipasang sendiri: Tailwind menghapus margin bawaan semua elemen, termasuk
+        // margin:auto milik <dialog> yang biasanya menengahkannya di layar.
+        className="m-auto max-w-[calc(100vw-2rem)] bg-transparent p-0 backdrop:bg-black/70 backdrop:backdrop-blur-sm"
       >
         {opsi && (
           <div
