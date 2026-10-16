@@ -6,7 +6,7 @@ import * as faceapi from "face-api.js";
 import { api, ApiError } from "@/lib/api";
 import { jadwalSholat, jam as formatJam, sholatBerikutnya } from "@/lib/sholat";
 import { useKamera } from "@/lib/useKamera";
-import { buangKalimat, isiTemplate, segarkanSuara, ucapkan } from "@/lib/suara";
+import { buangKalimat, isiTemplate, segarkanSuara, siapkanAudio, ucapkan } from "@/lib/suara";
 
 interface Hasil {
   ok: boolean;
@@ -273,9 +273,10 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   }, []);
 
   useEffect(() => {
-    // iOS Safari blokir speechSynthesis tanpa tap user langsung — device lain bisa langsung aktif otomatis
-    if (isIOSSafari() || typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    // iOS Safari blokir autoplay tanpa tap user langsung — device lain bisa langsung aktif otomatis
+    if (isIOSSafari() || typeof window === "undefined") return;
+    siapkanAudio();
+    if ("speechSynthesis" in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
     setSuaraAktif(true);
   }, []);
 
@@ -419,9 +420,10 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   }, [modelSiap, siap, scan, sesiHabis]);
 
   function aktifkanSuara() {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    // ucapan kosong dipicu langsung dari tap user — buka izin autoplay audio di Safari/iOS
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    if (typeof window === "undefined") return;
+    // dipicu langsung dari tap user — buka izin autoplay, untuk berkas rekaman maupun ucapan bawaan
+    siapkanAudio();
+    if ("speechSynthesis" in window) window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
     setSuaraAktif(true);
   }
 
