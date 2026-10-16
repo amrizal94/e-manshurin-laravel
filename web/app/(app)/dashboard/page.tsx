@@ -44,21 +44,21 @@ function bulanIni() {
 function StatTile({ label, value, href }: { label: string; value: number; href?: string }) {
   const isi = (
     <>
-      <p className="flex justify-between text-sm text-gray-500">
+      <p className="flex justify-between text-xs uppercase tracking-widest text-gray-500">
         {label}
         {/* Di HP tidak ada hover — tanpa tanda ini tidak ada yang tahu tile-nya bisa diklik. */}
         {href && <span aria-hidden="true" className="text-gray-300">›</span>}
       </p>
-      <p className="mt-1 text-3xl font-bold text-gray-900">{value}</p>
+      <p className="angka-hud mt-1 text-3xl text-gray-900">{value}</p>
     </>
   );
 
   return href ? (
-    <Link href={href} className="rounded-xl border border-gray-200 bg-white p-4 hover:border-emerald-400">
+    <Link href={href} className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-emerald-500/70 hover:border-emerald-400">
       {isi}
     </Link>
   ) : (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">{isi}</div>
+    <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-emerald-500/70">{isi}</div>
   );
 }
 
@@ -72,8 +72,8 @@ function StatTugas({ label, value, href }: { label: string; value: number; href:
   return (
     <Link href={href}
       className="rounded-xl border border-amber-300 bg-amber-50 p-4 hover:border-amber-400">
-      <p className="text-sm text-amber-800">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-amber-900">{value}</p>
+      <p className="text-xs uppercase tracking-widest text-amber-800">{label}</p>
+      <p className="angka-hud mt-1 text-3xl text-amber-900">{value}</p>
       <p className="mt-1 text-xs text-amber-700">Klik untuk merapikan</p>
     </Link>
   );
@@ -112,7 +112,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
+      <h2 className="judul-hud text-xl text-gray-900">Dashboard</h2>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="Jamaah Aktif" value={data.total_jamaah} href="/jamaah?aktif=1" />
@@ -148,7 +148,7 @@ export default function DashboardPage() {
 
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-900">Jamaah Aktif per Kategori Usia</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-900">Jamaah Aktif per Kategori Usia</h3>
           <div className="flex gap-4 text-xs text-gray-500">
             {([["Laki-laki", LAKI], ["Perempuan", PEREMPUAN]] as const).map(([l, warna]) => (
               <span key={l} className="flex items-center gap-1.5">
@@ -182,7 +182,7 @@ export default function DashboardPage() {
               </div>
               <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-sm tabular-nums text-gray-500 sm:col-start-3">
                 {k.L} L · {k.P} P
-                <span className="ml-3 inline-block w-8 font-semibold text-gray-900">{k.total}</span>
+                <span className="angka-hud ml-3 inline-block w-8 text-gray-900">{k.total}</span>
               </span>
             </Link>
           ))}

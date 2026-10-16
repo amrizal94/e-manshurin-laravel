@@ -54,27 +54,27 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen">
-      <section className="relative hidden w-1/2 flex-col justify-center overflow-hidden bg-emerald-900 px-16 text-white lg:flex">
+    <main className="ruang-kendali flex min-h-screen">
+      <section className="relative hidden w-1/2 flex-col justify-center overflow-hidden px-16 lg:flex">
         <Image src="/logo.png" alt="E-Manshurin" width={80} height={80} />
-        <h1 className="mt-6 text-3xl font-bold">E-Manshurin</h1>
-        <p className="mt-2 text-emerald-200">
+        <h1 className="judul-hud mt-6 text-3xl text-white">E-Manshurin</h1>
+        <p className="mt-2 text-[color:var(--sian)]">
           Absensi Pengajian Berbasis Wajah
         </p>
-        <ul className="mt-8 space-y-3 text-sm text-emerald-100">
+        <ul className="mt-8 space-y-3 text-sm text-[color:var(--teks)]">
           {FITUR.map((f) => (
             <li key={f} className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+              <span className="h-1.5 w-1.5 rotate-45 bg-[color:var(--sian)] shadow-[0_0_8px_var(--sian)]" />
               {f}
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="flex flex-1 items-center justify-center bg-gray-50 p-4">
+      <section className="flex flex-1 items-center justify-center p-4">
         <form
           onSubmit={submit}
-          className="w-full max-w-sm space-y-4 rounded-xl bg-white p-8 shadow"
+          className="panel w-full max-w-sm space-y-4 p-8"
         >
           <div className="text-center lg:hidden">
             <Image
@@ -86,16 +86,16 @@ function LoginForm() {
             />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Masuk</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="judul-hud text-2xl text-white">Masuk</h2>
+            <p className="text-sm text-[color:var(--redup)]">
               Masukkan email dan password Anda
             </p>
           </div>
           {error && (
-            <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>
+            <p className="rounded border border-red-500/40 bg-red-500/10 p-2 text-sm text-red-300">{error}</p>
           )}
           <div>
-            <label htmlFor="lg-email" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="lg-email" className="mb-1 block text-xs uppercase tracking-widest text-[color:var(--redup)]">
               Email
             </label>
             <input
@@ -105,11 +105,11 @@ function LoginForm() {
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+              className="w-full rounded border border-[color:var(--garis)] bg-black/30 px-3 py-2 text-sm text-white focus:border-[color:var(--sian)] focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="lg-password" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="lg-password" className="mb-1 block text-xs uppercase tracking-widest text-[color:var(--redup)]">
               Password
             </label>
             <div className="relative">
@@ -120,12 +120,12 @@ function LoginForm() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded border border-[color:var(--garis)] bg-black/30 px-3 py-2 pr-10 text-sm text-white focus:border-[color:var(--sian)] focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setLihatPassword((v) => !v)}
-                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-[color:var(--redup)] hover:text-white"
                 aria-label={lihatPassword ? "Sembunyikan password" : "Tampilkan password"}
               >
                 {lihatPassword ? (
@@ -145,7 +145,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="judul-hud w-full rounded border border-[color:var(--sian)] bg-[color:var(--sian)]/15 py-2 text-sm text-white shadow-[0_0_18px_rgba(0,212,255,.25)] hover:bg-[color:var(--sian)]/25 disabled:opacity-50"
           >
             {loading ? "Masuk..." : "Masuk"}
           </button>

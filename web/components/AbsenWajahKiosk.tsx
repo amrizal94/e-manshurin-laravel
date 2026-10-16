@@ -137,8 +137,20 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   const standby = !kegiatanId;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Jam besar: kiosk ditinggal menyala seharian di dinding, dan yang lewat perlu tahu
+  // jam berapa sekarang tanpa mengeluarkan HP. Kosong saat dirender di server — waktu
+  // versi server bukan waktu pembacanya.
+  const [jam, setJam] = useState("");
   const [proses, setProses] = useState(false);
   const [riwayat, setRiwayat] = useState<Hasil[]>([]);
+
+  useEffect(() => {
+    const tik = () => setJam(new Date().toLocaleTimeString("id-ID", { hour12: false }));
+    tik();
+    const pewaktu = setInterval(tik, 1000);
+
+    return () => clearInterval(pewaktu);
+  }, []);
   const [error, setError] = useState("");
   const [modelSiap, setModelSiap] = useState(false);
   const [wajahTerdeteksi, setWajahTerdeteksi] = useState(false);
@@ -451,7 +463,13 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       )}
 
       {/* di mode terkunci, judul digeser turun supaya tidak tertimpa link "Kembali" di layar HP */}
-      <h1 className={`text-xl font-bold sm:text-3xl ${kegiatanId ? "mt-8 sm:mt-0" : ""}`}>Absen Wajah</h1>
+      <h1 className={`judul-hud text-xl text-white sm:text-3xl ${kegiatanId ? "mt-8 sm:mt-0" : ""}`}>Absen Wajah</h1>
+
+      {jam && (
+        <p className="angka-hud -mt-2 text-4xl text-[color:var(--sian)] drop-shadow-[0_0_14px_rgba(0,212,255,.6)] sm:text-6xl">
+          {jam}
+        </p>
+      )}
 
       {standby && jadwal && (
         <p className="-mt-2 text-center text-xs text-gray-500">
@@ -460,7 +478,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       )}
 
       {standby && jadwal && (
-        <p className={`-mt-1 text-center text-sm ${adaKegiatan ? "text-emerald-300" : "text-gray-400"}`}>
+        <p className={`-mt-1 text-center text-sm ${adaKegiatan ? "text-[color:var(--sian)]" : "text-[color:var(--redup)]"}`}>
           {adaKegiatan ? jadwal.aktif.map((k) => k.nama).join(" · ") : jadwalBerikutnya}
         </p>
       )}
@@ -491,7 +509,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
           autoPlay
           playsInline
           muted
-          className="aspect-[4/3] w-full rounded-2xl border-4 border-gray-800 bg-black object-cover"
+          className="aspect-[4/3] w-full rounded border border-[color:var(--garis)] bg-black shadow-[0_0_30px_rgba(0,212,255,.15)] object-cover"
         />
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 aspect-[4/3] w-full" />
 
