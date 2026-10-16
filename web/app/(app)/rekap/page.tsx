@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api, unduh } from "@/lib/api";
 import { JENIS_PENGAJIAN, KATEGORI_USIA } from "@/lib/labels";
 
-interface RekapKegiatan { id: number; nama: string; tanggal: string; jenis_pengajian: string }
+interface RekapKegiatan { id: number; nama: string; tanggal: string; jam_mulai: string; jenis_pengajian: string }
 interface RekapRow {
   jamaah: { id: number; nama_lengkap: string; kelompok: string | null; kategori_usia: string };
   statuses: Record<string, string | null>;
@@ -134,9 +134,12 @@ export default function RekapPage() {
                   <th className="sticky left-0 bg-gray-50 p-2 print:static sm:p-3">Nama</th>
                   <th className="hidden p-2 sm:table-cell sm:p-3">Kelompok</th>
                   <th className="hidden p-2 sm:table-cell sm:p-3">Kategori</th>
+                  {/* Jamnya ikut, karena sejak sholat berjamaah direkap, satu hari berisi
+                      lima kolom yang tanggalnya sama persis. */}
                   {kegiatans.map((k) => (
                     <th key={k.id} className="whitespace-nowrap p-2 text-center sm:p-3" title={k.nama}>
-                      {k.tanggal.slice(5)}
+                      <span className="block">{k.tanggal.slice(5)}</span>
+                      <span className="block text-[10px] font-normal text-gray-400">{k.jam_mulai}</span>
                     </th>
                   ))}
                   {/* Angka ringkasan dipisah garis supaya tidak terbaca sebagai kegiatan berikutnya. */}

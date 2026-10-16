@@ -152,6 +152,9 @@ class RekapAbsensi
             'id' => $k->id,
             'nama' => $k->nama,
             'tanggal' => $k->tanggal->toDateString(),
+            // Dipakai judul kolom di layar: sejak sholat berjamaah ikut direkap, satu hari
+            // berisi lima kegiatan dan tanggal saja tidak lagi membedakan apa pun.
+            'jam_mulai' => substr((string) $k->jam_mulai, 0, 5),
             'jenis_pengajian' => $k->jenis_pengajian,
         ]);
     }
