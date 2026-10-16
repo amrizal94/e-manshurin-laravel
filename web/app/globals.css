@@ -221,6 +221,47 @@ body {
   color: var(--redup);
 }
 
+/*
+ * Varian hover dan disabled ikut dipetakan.
+ *
+ * Yang dipasang di atas cuma kelas polos; "hover:bg-gray-100" menghasilkan kelas lain
+ * lagi, jadi saat kursor lewat yang berlaku tetap abu-abu terang aslinya — tulisan terang
+ * di atas latar terang, menunya hilang persis saat sedang ditunjuk.
+ */
+.ruang-kendali .hover\:bg-gray-50:hover,
+.ruang-kendali .hover\:bg-gray-100:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.ruang-kendali .hover\:bg-gray-200:hover,
+.ruang-kendali .hover\:bg-gray-700:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.ruang-kendali .hover\:bg-white:hover {
+  background-color: rgba(10, 30, 54, 0.9);
+}
+
+/* Hover pada tulisan artinya "lebih jelas"; di latar gelap itu berarti lebih terang. */
+.ruang-kendali .hover\:text-gray-600:hover,
+.ruang-kendali .hover\:text-gray-700:hover,
+.ruang-kendali .hover\:text-gray-800:hover {
+  color: #fff;
+}
+
+/* Tombol bergaris: hover-nya latar pucat, yang di sini berarti kilatan putih. */
+.ruang-kendali .hover\:bg-emerald-50:hover {
+  background-color: rgba(46, 230, 166, 0.14);
+}
+
+.ruang-kendali .hover\:bg-red-50:hover {
+  background-color: rgba(255, 77, 94, 0.14);
+}
+
+.ruang-kendali .disabled\:bg-gray-300:disabled {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
 /* Yang menempel saat digulir harus ikut gelap, kalau tidak isinya tembus di belakangnya. */
 .ruang-kendali .sticky {
   background-color: #061426;
