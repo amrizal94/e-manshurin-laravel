@@ -8,8 +8,13 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// activitylog.delete_records_older_than_days cuma berlaku kalau perintah ini benar-benar jalan
-Schedule::command('activitylog:clean')->dailyAt('02:00');
+// activitylog.delete_records_older_than_days cuma berlaku kalau perintah ini benar-benar jalan.
+//
+// --force wajib: perintah ini menghapus baris, jadi Laravel menuntut konfirmasi di
+// produksi. Penjadwal tidak punya siapa-siapa untuk menjawab, jadi tiap malam perintahnya
+// batal sendiri dengan exit code 1 — gagal tanpa ada yang melihat, dan tabelnya terus
+// membesar. Ketahuan dari laravel.log, bukan dari keluhan siapa pun.
+Schedule::command('activitylog:clean', ['--force'])->dailyAt('02:00');
 
 // Tanpa ini jadwal rutin habis di ujung horizonnya dan pengajian mendadak tidak ada
 // kegiatannya — kiosk diam, tidak ada yang bisa absen.
