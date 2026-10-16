@@ -29,6 +29,11 @@ class JadwalRutinController extends Controller
             'hari.*' => ['integer', 'between:0,6'],
             'jam_mulai' => ['required', 'date_format:H:i'],
             'jam_selesai' => ['required', 'date_format:H:i', 'after:jam_mulai'],
+            // Kosong berarti jamnya tetap seperti dulu. Terisi berarti jam di atas cuma
+            // perkiraan terakhir; yang menentukan waktu sholat pada tanggal terbitnya.
+            'patokan_sholat' => ['nullable', 'in:'.implode(',', \App\Support\WaktuSholat::PATOKAN)],
+            'offset_menit' => ['nullable', 'integer', 'between:-120,120'],
+            'durasi_menit' => ['nullable', 'integer', 'between:5,480'],
             'aktif' => ['boolean'],
         ];
     }
@@ -105,10 +110,14 @@ class JadwalRutinController extends Controller
         $jadwalRutin->update($data);
 
         $hasil = $this->penghasil->untuk($jadwalRutin);
+        $diselaraskan = $this->penghasil->selaraskan($jadwalRutin);
 
         return response()->json([
             'success' => true,
-            'message' => 'Jadwal diperbarui. '.$this->ringkasan($hasil).' Kegiatan yang sudah terbit tidak diubah.',
+            'message' => 'Jadwal diperbarui. '.$this->ringkasan($hasil)
+                .($diselaraskan > 0
+                    ? " Jam {$diselaraskan} kegiatan yang belum berlangsung ikut disesuaikan."
+                    : ' Kegiatan yang sudah ada absensinya tidak diubah.'),
             'data' => ['jadwal' => $jadwalRutin, ...$hasil],
         ]);
     }

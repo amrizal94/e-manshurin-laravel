@@ -15,6 +15,46 @@ use App\Models\Kegiatan;
 class PenghasilKegiatan
 {
     /**
+     * Samakan jam kegiatan yang sudah terbit dengan jadwalnya.
+     *
+     * Dibutuhkan sejak jadwal bisa berpatokan waktu sholat: mengubah patokan tanpa ini
+     * meninggalkan 30 hari kegiatan berjam lama, dan petugas melihat jadwal baru di satu
+     * layar tapi jam lama di layar sebelahnya.
+     *
+     * Yang sudah ada absensinya tidak disentuh. Mengubah jam kegiatan yang sudah dihadiri
+     * orang berarti memalsukan catatan.
+     *
+     * @return int jumlah kegiatan yang jamnya berubah
+     */
+    public function selaraskan(JadwalRutin $jadwal): int
+    {
+        $diubah = 0;
+
+        $kegiatans = Kegiatan::where('jadwal_rutin_id', $jadwal->id)
+            ->whereDate('tanggal', '>=', Kegiatan::sekarangLokal()->toDateString())
+            ->withCount('absensis')
+            ->get();
+
+        foreach ($kegiatans as $kegiatan) {
+            if ($kegiatan->absensis_count > 0) {
+                continue;
+            }
+
+            [$mulai, $selesai] = $jadwal->jamUntuk($kegiatan->tanggal);
+
+            if (substr((string) $kegiatan->jam_mulai, 0, 5) === $mulai
+                && substr((string) $kegiatan->jam_selesai, 0, 5) === $selesai) {
+                continue;
+            }
+
+            $kegiatan->update(['jam_mulai' => $mulai, 'jam_selesai' => $selesai]);
+            $diubah++;
+        }
+
+        return $diubah;
+    }
+
+    /**
      * @return array{dibuat: int, sudah_ada: int, bentrok: list<string>}
      */
     public function untuk(JadwalRutin $jadwal, ?int $hari = null): array

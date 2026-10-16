@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Absensi;
 use App\Models\Daerah;
 use App\Models\Desa;
 use App\Models\JadwalRutin;
@@ -214,9 +215,23 @@ class JadwalRutinTest extends TestCase
         $this->assertSame($jumlah, Kegiatan::whereNull('jadwal_rutin_id')->count());
     }
 
-    public function test_mengubah_jadwal_tidak_menggeser_kegiatan_yang_sudah_terbit(): void
+    /**
+     * Dulu kegiatan yang sudah terbit dibiarkan apa adanya. Sejak jadwal bisa berpatokan
+     * waktu sholat itu tidak lagi masuk akal: mengubah patokan akan meninggalkan 30 hari
+     * kegiatan berjam lama, dan petugas melihat jadwal baru di satu layar tapi jam lama di
+     * layar sebelahnya. Yang sudah ada absensinya tetap tidak disentuh — itu catatan.
+     */
+    public function test_mengubah_jadwal_menggeser_kegiatan_yang_belum_ada_absensinya(): void
     {
         $id = $this->buat()->json('data.jadwal.id');
+
+        $sudahDihadiri = Kegiatan::orderBy('tanggal')->first();
+        Absensi::create([
+            'kegiatan_id' => $sudahDihadiri->id,
+            'jamaah_id' => $this->jamaah()->id,
+            'status' => 'hadir',
+            'metode' => 'manual',
+        ]);
 
         $this->actingAs($this->admin)->putJson("/api/jadwal-rutins/{$id}", [
             'nama' => 'Pengajian Kelompok',
@@ -227,9 +242,38 @@ class JadwalRutinTest extends TestCase
             'jam_selesai' => '20:30',
         ])->assertOk();
 
-        $jam = Kegiatan::pluck('jam_mulai')->map(fn ($j) => substr((string) $j, 0, 5));
-        $this->assertSame(9, $jam->filter(fn ($j) => $j === '18:30')->count());
-        $this->assertSame(0, $jam->filter(fn ($j) => $j === '19:00')->count());
+        $jam = fn (Kegiatan $k) => substr((string) $k->fresh()->jam_mulai, 0, 5);
+
+        // Yang sudah dihadiri tetap di jam lamanya; sisanya ikut jadwal barunya.
+        $this->assertSame('18:30', $jam($sudahDihadiri));
+        $this->assertSame(
+            0,
+            Kegiatan::whereKeyNot($sudahDihadiri->id)
+                ->get()
+                ->filter(fn (Kegiatan $k) => $jam($k) === '18:30')
+                ->count()
+        );
+    }
+
+    /** Jam yang berpatokan sholat dihitung ulang tiap tanggal, bukan disalin dari jadwalnya. */
+    public function test_jadwal_berpatokan_sholat_menerbitkan_jam_yang_bergeser(): void
+    {
+        $this->buat([
+            'hari' => [0, 1, 2, 3, 4, 5, 6],
+            'patokan_sholat' => 'maghrib',
+            'offset_menit' => 15,
+            'durasi_menit' => 90,
+        ])->assertCreated();
+
+        $jam = Kegiatan::orderBy('tanggal')->take(30)->get()
+            ->map(fn (Kegiatan $k) => substr((string) $k->jam_mulai, 0, 5));
+
+        // Jam yang diisi di formulir tidak dipakai sama sekali.
+        $this->assertSame(0, $jam->filter(fn ($j) => $j === '18:30')->count());
+        // Maghrib di Kediri sekitar pukul 17.30, jadi +15 menit jatuh di sekitar 17.45.
+        $this->assertTrue($jam->every(fn ($j) => $j >= '17:30' && $j <= '18:15'), $jam->implode(','));
+        // Dan tidak semuanya sama — itu inti seluruh fiturnya.
+        $this->assertGreaterThan(1, $jam->unique()->count());
     }
 
     public function test_hari_kosong_ditolak(): void
