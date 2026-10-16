@@ -58,11 +58,11 @@ export default function JadwalSholatPage() {
   const muat = useCallback(async () => {
     try {
       const [res, koordinat] = await Promise.all([
-        api<{ data: JadwalRutin[] }>("/jadwal-rutins?per_page=100"),
+        api<JadwalRutin[]>("/jadwal-rutins"),
         api<{ koordinat?: string }>("/settings").then((r) => r.data.koordinat).catch(() => undefined),
       ]);
 
-      const semua = res.data.data;
+      const semua = res.data;
       setJadwals(semua);
 
       const awal: Record<string, Baris> = {};

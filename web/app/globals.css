@@ -50,6 +50,11 @@ body {
 
   color: var(--teks);
   background-color: var(--latar);
+  /* Memberi tahu browser bahwa latarnya gelap, supaya kontrol bawaannya ikut gelap:
+     ikon jam di kolom waktu, panah naik-turun di kolom angka, pemilih tanggal, dan
+     batang gulir. Tanpa ini ikonnya digambar hitam di atas panel gelap — nyaris tak
+     terlihat, dan pemilih jamnya muncul putih menyilaukan. */
+  color-scheme: dark;
   /* Dua cahaya di sudut atas, lalu kisi tipis 44px — itu yang bikin terasa "layar operasi". */
   background-image:
     radial-gradient(1000px 600px at 12% -10%, rgba(0, 212, 255, 0.16), transparent 60%),
