@@ -53,7 +53,12 @@ export default function JadwalSholatPage() {
 
   // Hitungan hari ini, cuma sebagai pembanding di sebelah kolom isian. Yang menentukan
   // jam sholat berjamaah tetap pengurus — di pondok sholatnya dimulai manual.
-  const [hitungan, setHitungan] = useState<Record<string, string>>({});
+  //
+  // Disimpan sebagai Date, bukan teks: format jam Indonesia memakai titik ("14.24"),
+  // sedangkan kolom waktu menuntut titik dua ("14:24"). Berhitung dari teks tampilan
+  // membuat selisihnya jadi NaN tanpa ada yang protes — tandanya diam saja — dan
+  // mengisikannya ke kolom waktu justru mengosongkan kolomnya.
+  const [hitungan, setHitungan] = useState<Record<string, Date>>({});
 
   const muat = useCallback(async () => {
     try {
@@ -86,9 +91,7 @@ export default function JadwalSholatPage() {
       }
 
       const waktu = jadwalSholat(koordinat ?? "-7.8166,112.0114");
-      setHitungan(Object.fromEntries(
-        waktu.map((w, i) => [SHOLAT[i].kunci, formatJam(w.waktu)])
-      ));
+      setHitungan(Object.fromEntries(waktu.map((w, i) => [SHOLAT[i].kunci, w.waktu])));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat");
     } finally {
@@ -111,7 +114,9 @@ export default function JadwalSholatPage() {
   function isiDariHitungan() {
     setIsi((lama) => Object.fromEntries(
       SHOLAT.map((s) => {
-        const mulai = hitungan[s.kunci] ?? lama[s.kunci]?.mulai ?? "";
+        const waktu = hitungan[s.kunci];
+        const mulai = waktu ? nilaiJam(waktu) : lama[s.kunci]?.mulai ?? "";
+
         return [s.kunci, { ...lama[s.kunci], mulai, selesai: tambahMenit(mulai, 30) }];
       })
     ));
@@ -204,8 +209,9 @@ export default function JadwalSholatPage() {
           <tbody className="divide-y divide-gray-100">
             {SHOLAT.map((s) => {
               const baris = isi[s.kunci] ?? BARIS_KOSONG;
-              const selisih = baris.mulai && hitungan[s.kunci]
-                ? Math.abs(menitJam(baris.mulai) - menitJam(hitungan[s.kunci]))
+              const waktu = hitungan[s.kunci];
+              const selisih = baris.mulai && waktu
+                ? Math.abs(menitJam(baris.mulai) - (waktu.getHours() * 60 + waktu.getMinutes()))
                 : 0;
 
               return (
@@ -228,7 +234,7 @@ export default function JadwalSholatPage() {
                       })} />
                   </td>
                   <td className="whitespace-nowrap p-3 text-gray-500">
-                    {hitungan[s.kunci] ?? "-"}
+                    {waktu ? formatJam(waktu) : "-"}
                     {selisih >= AMBANG_PERINGATAN && (
                       <span className="ml-2 text-amber-700">⚠ selisih {selisih} menit</span>
                     )}
@@ -252,6 +258,11 @@ export default function JadwalSholatPage() {
       </div>
     </div>
   );
+}
+
+/** Nilai untuk <input type="time">, yang selalu menuntut titik dua. */
+function nilaiJam(waktu: Date): string {
+  return `${String(waktu.getHours()).padStart(2, "0")}:${String(waktu.getMinutes()).padStart(2, "0")}`;
 }
 
 function menitJam(jam: string): number {
