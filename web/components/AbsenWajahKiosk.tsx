@@ -166,6 +166,10 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   // jam berapa sekarang tanpa mengeluarkan HP. Kosong saat dirender di server — waktu
   // versi server bukan waktu pembacanya.
   const [jamSekarang, setJamSekarang] = useState("");
+  // Wajah terdeteksi tapi scan-nya sedang dijeda. Dipisah dari wajahTerdeteksi karena
+  // labelnya harus beda: di luar jam kegiatan jedanya 2 menit, dan "tahan sebentar"
+  // selama itu adalah janji yang tidak ditepati.
+  const [tertahan, setTertahan] = useState(false);
   // Koordinat dari Pengaturan; jadwalnya dihitung di perangkat ini, tanpa jaringan.
   const [koordinat, setKoordinat] = useState(SUARA_BAWAAN.koordinat);
   const [proses, setProses] = useState(false);
@@ -420,6 +424,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
 
           if (hasil === "timeout" || !hasil) {
             setWajahTerdeteksi(false);
+            setTertahan(false);
             stabilSejakRef.current = null;
             sudahDiprosesRef.current = false;
             if (canvasRef.current) {
@@ -441,6 +446,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
             // lama di depan kamera tidak perlu dikirim ke face-service tiap 6 detik
             const plafon = adaKegiatanRef.current ? PLAFON_MS : JEDA_SAPA_MS;
             const bolehScan = !sudahDiprosesRef.current || sejakScanTerakhir >= plafon;
+            setTertahan(!bolehScan);
             if (stabilMs >= STABIL_MS && bolehScan) {
               sudahDiprosesRef.current = true;
               scanTerakhirRef.current = Date.now();
@@ -472,11 +478,13 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
     ? "Memuat model deteksi wajah..."
     : proses
       ? "Memproses..."
-      : wajahTerdeteksi
-        ? "Wajah terdeteksi, tahan sebentar..."
-        : adaKegiatan
-          ? "Arahkan wajah ke kamera..."
-          : "Belum ada pengajian saat ini";
+      : !adaKegiatan && tertahan
+        ? "Belum ada pengajian saat ini"
+        : wajahTerdeteksi
+          ? "Wajah terdeteksi, tahan sebentar..."
+          : adaKegiatan
+            ? "Arahkan wajah ke kamera..."
+            : "Belum ada pengajian saat ini";
 
   const jadwalBerikutnya = jadwal?.berikutnya
     ? `Jadwal berikutnya: ${kalimatJadwal(jadwal.berikutnya)}`
@@ -539,7 +547,7 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       <h1 className={`judul-hud text-xl text-white sm:text-3xl ${kegiatanId ? "mt-8 sm:mt-0" : ""}`}>Absen Wajah</h1>
 
       {jamSekarang && (
-        <p className="angka-hud -mt-2 text-4xl text-[color:var(--sian)] drop-shadow-[0_0_14px_rgba(0,212,255,.6)] sm:text-6xl">
+        <p className="angka-hud text-4xl leading-none text-[color:var(--sian)] drop-shadow-[0_0_14px_rgba(0,212,255,.6)] sm:-mt-2 sm:text-6xl">
           {jamSekarang}
         </p>
       )}
