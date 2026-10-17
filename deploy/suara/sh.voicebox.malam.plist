@@ -6,11 +6,11 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/arimuhammadrizal/voicebox-app/malam.sh</string>
+    <string>/Users/arimuhammadrizal/suara-v2/malam.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
-  <key>StandardOutPath</key><string>/Users/arimuhammadrizal/voicebox-app/malam.log</string>
-  <key>StandardErrorPath</key><string>/Users/arimuhammadrizal/voicebox-app/malam.log</string>
+  <key>StandardOutPath</key><string>/Users/arimuhammadrizal/suara-v2/malam.log</string>
+  <key>StandardErrorPath</key><string>/Users/arimuhammadrizal/suara-v2/malam.log</string>
 </dict>
 </plist>

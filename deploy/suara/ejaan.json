@@ -1,0 +1,9 @@
+{
+  "_catatan": "Ejaan ganti untuk Piper. Kuncinya kata apa adanya dari basis data, nilainya ejaan yang dilafalkan benar. Ini TIDAK mengubah nama berkas: sha1 tetap dihitung dari kalimat asli, jadi kiosk tidak perlu tahu apa-apa. Ditambah hanya kalau periksa-suara.py menandai sebuah nama -- dan karena Piper deterministik, satu entri berlaku selamanya.",
+  "IRSYAD": "Ir syad",
+  "CHAYYIS": "Khayyis",
+  "MAKMAR": "Mak mar",
+  "IIN": "Ien",
+  "ZAHWA": "Zah wa",
+  "SIDDIQ": "Sidiq"
+}
