@@ -21,7 +21,11 @@ set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 KERJA="$HOME/voicebox-app"
-SERVER="root@100.94.76.103"   # alamat tailscale aapanel
+# Alamat publik, bukan tailnet: server memakai Tailscale SSH, yang menyadap SSH
+# di alamat 100.x dan menuntut persetujuan lewat browser ("requires an additional
+# check"). Sambungannya menggantung menunggu seseorang mengeklik tautan, dan
+# authorized_keys tidak dipakai di jalur itu -- mustahil untuk pekerjaan tanpa penunggu.
+SERVER="root@emanshurin.kreasikaryaarjuna.co.id"
 API="http://127.0.0.1:17493"
 
 lapor() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }

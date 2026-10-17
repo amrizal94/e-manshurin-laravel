@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Penjaga voicebox di Mac mini. Dipasang:
+    cp deploy/suara/sh.voicebox.server.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.voicebox.server.plist
+
+  --data-dir wajib eksplisit. Bawaannya "data" relatif ke cwd, dan cwd launchd
+  itu "/", jadi tanpa ini servernya mencoba membuat /data lalu mati:
+    OSError: [Errno 30] Read-only file system: '/data'
+  Itu gagal 64 kali berturut-turut sebelum ketemu, dan dari luar kelihatannya
+  cuma "voicebox tidak menyahut".
+
+  ThrottleInterval 60 supaya kalau memang ada yang salah, kegagalannya tidak
+  memanggil impor torch berulang-ulang tiap beberapa detik.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>sh.voicebox.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/arimuhammadrizal/voicebox-app/Voicebox.app/Contents/MacOS/voicebox-server</string>
+    <string>--port</string><string>17493</string>
+    <string>--data-dir</string><string>/Users/arimuhammadrizal/voicebox-app/data</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/arimuhammadrizal/voicebox-app</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>HOME</key><string>/Users/arimuhammadrizal</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>60</integer>
+  <key>StandardOutPath</key><string>/Users/arimuhammadrizal/voicebox-app/server.log</string>
+  <key>StandardErrorPath</key><string>/Users/arimuhammadrizal/voicebox-app/server.log</string>
+</dict>
+</plist>
