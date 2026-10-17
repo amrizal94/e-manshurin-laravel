@@ -168,7 +168,19 @@ export default function JamaahPage() {
   const namaRef = useRef<HTMLInputElement>(null);
   const [editId, setEditId] = useState<number | null>(null);
 
+  const pertamaCari = useRef(true);
+
   useEffect(() => {
+    // Efek ini ikut jalan saat halaman baru dimuat, dan setPage(1) di dalamnya menimpa
+    // nomor halaman yang baru dibaca dari alamat -- 300 ms sesudahnya, jadi saringannya
+    // selamat tapi halamannya balik ke 1. Melewati putaran pertama aman karena kotak
+    // cari tidak dipulihkan dari alamat: search dan searchDebounced sama-sama kosong.
+    if (pertamaCari.current) {
+      pertamaCari.current = false;
+
+      return;
+    }
+
     const t = setTimeout(() => {
       setSearchDebounced(search);
       setPage(1);
