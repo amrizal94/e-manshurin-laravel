@@ -7,8 +7,10 @@
 # untuk menyalin beberapa berkas mp3. Dengan command= di authorized_keys,
 # kunci itu cuma bisa dua hal di bawah ini, apa pun yang diminta pengirimnya.
 #
-# Pasang di authorized_keys server (satu baris):
-#   restrict,command="/www/wwwroot/emanshurin/deploy/suara/agen.sh" ssh-ed25519 AAAA... macmini
+# Pasang di authorized_keys server (satu baris). Dipanggil lewat /bin/bash,
+# bukan langsung: exec bit tidak terbawa dari checkout Windows, jadi setiap deploy
+# akan mengembalikannya ke 644 dan sshd menolak menjalankannya.
+#   restrict,command="/bin/bash /www/wwwroot/emanshurin/deploy/suara/agen.sh" ssh-ed25519 AAAA... macmini
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
