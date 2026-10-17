@@ -284,6 +284,11 @@ class FaceController extends Controller
         $jamaah = Jamaah::find($best['jamaah_id']);
         $kegiatan = $kegiatans->first(fn (Kegiatan $k) => $k->pesertaQuery()->whereKey($jamaah->id)->exists());
 
+        // Status sebelumnya dibaca dulu supaya kiosk bisa membedakan absen yang
+        // benar-benar baru dari pindai ulang. Izin yang berubah jadi hadir juga
+        // terhitung baru -- bagi yang discan, itu absen pertamanya hari ini.
+        $sebelum = Absensi::where('kegiatan_id', $kegiatan->id)->where('jamaah_id', $jamaah->id)->first();
+
         $absensi = Absensi::updateOrCreate(
             ['kegiatan_id' => $kegiatan->id, 'jamaah_id' => $jamaah->id],
             // keterangan dikosongkan: kalau sebelumnya izin lewat WA, alasannya sudah tidak berlaku
@@ -298,6 +303,7 @@ class FaceController extends Controller
                 'kegiatan' => ['id' => $kegiatan->id, 'nama' => $kegiatan->nama],
                 'score' => round($best['score'], 4),
                 'absensi' => $absensi,
+                'baru' => $sebelum === null || $sebelum->status !== 'hadir',
             ],
         ]);
     }

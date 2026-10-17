@@ -75,6 +75,36 @@ Yang di bawah ambang digenerate ulang sampai tiga seed lain, diambil yang
 terbaik. Semua 22 itu lolos di percobaan kedua atau ketiga. Hasil akhirnya ada
 di `keluaran/laporan.json`.
 
+## Kalimat tetap
+
+Tiga setelan tidak memuat nama -- `suara_tak_dikenal`, `suara_sudah_absen`,
+`suara_gagal` -- jadi masing-masing cukup satu berkas. Bangunnya memakai skrip
+yang sama, cukup taruh kalimatnya di tempat `nama` dan biarkan templatnya
+`{nama}` saja:
+
+```json
+{
+ "templat": { "suara_absen": "{nama}" },
+ "jamaah": [
+  { "id": 1, "nama": "Maaf, wajahnya belum dikenali. Silakan ke petugas.", "jk": "L", "sapaan": "" }
+ ]
+}
+```
+
+## Kata yang dilafalkan keliru
+
+Mode Melayu salah membaca sebagian kata Indonesia, dan itu **tidak acak** --
+menambah seed tidak menolong. Yang sudah ketemu:
+
+```
+"coba"   -> "khoba" / "koba" / "khobar"   (sama di tiga seed berbeda)
+angka    -> "pukul 18.30" jadi bunyi kacau; tulis "delapan belas tiga puluh"
+```
+
+Jadi kalau pemeriksa menandai satu kalimat dan generate ulang tetap jelek,
+curigai katanya, bukan modelnya. `suara_gagal` bawaannya "Maaf, belum terbaca.
+Silakan ulangi." justru karena versi dengan "coba" tidak pernah benar.
+
 ## Jamaah baru
 
 Tidak perlu membangun ulang semuanya — langkah 2 melewati berkas yang sudah ada,

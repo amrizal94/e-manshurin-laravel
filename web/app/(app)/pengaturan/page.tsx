@@ -47,6 +47,29 @@ const KARTU = [
     catatan:
       "Kalimat yang memuat {jam_berikutnya} tidak dibacakan kalau hari itu sudah tidak ada jadwal lagi.",
   },
+  {
+    key: "suara_sudah_absen",
+    judul: "Suara Kalau Sudah Absen",
+    placeholder: ["{sapaan}", "{nama}"],
+    suara: true,
+    catatan:
+      "Dibacakan saat orang yang sama memindai lagi padahal absennya sudah tercatat. Bawaannya tanpa nama supaya cukup satu berkas rekaman; kalau diberi {sapaan} atau {nama}, kalimat itu dibacakan suara bawaan perangkat sampai berkasnya dibangun.",
+  },
+  {
+    key: "suara_tak_dikenal",
+    judul: "Suara Kalau Wajah Belum Dikenali",
+    placeholder: [],
+    suara: true,
+    catatan:
+      "Tanpa nama, dan sebaiknya tetap begitu: pengenalan wajah kadang gagal, jadi kalimatnya lebih baik menyebut batas sistemnya daripada menyatakan orangnya tidak terdaftar. Tidak dibacakan di luar jam kegiatan — yang lewat di depan kamera saat itu orang berjalan, bukan orang mau absen.",
+  },
+  {
+    key: "suara_gagal",
+    judul: "Suara Kalau Gagal",
+    placeholder: [],
+    suara: true,
+    catatan: "Dibacakan kalau wajah tidak terdeteksi atau layanan wajahnya sedang mati.",
+  },
 ] as const;
 
 export default function PengaturanPage() {

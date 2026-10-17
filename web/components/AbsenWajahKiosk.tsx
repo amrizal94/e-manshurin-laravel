@@ -46,12 +46,21 @@ const POLL_JADWAL_MS = 60_000;
 // Di luar jam kegiatan kiosk cuma menyapa. Orang yang berdiri di depan kamera jangan
 // disapa tiap beberapa detik — sekali per orang per rentang ini sudah cukup ramah.
 const JEDA_SAPA_MS = 120_000;
+/**
+ * Kalimat tanpa nama tidak punya id jamaah untuk dijadikan kunci jeda, jadi jedanya
+ * global: satu ucapan per rentang ini, siapa pun yang berdiri di depan kamera.
+ * Tanpa itu kiosk mengulanginya tiap putaran pemindaian.
+ */
+const JEDA_PESAN_MS = 15_000;
 const JAM_BERIKUTNYA = "{jam_berikutnya}";
 
 /** Dipakai sampai pengaturan dari server datang, dan kalau servernya tidak terjangkau. */
 const SUARA_BAWAAN = {
   suara_absen: "{doa}, {sapaan} {nama}, sudah absen",
   suara_idle: "Halo {sapaan} {nama}, saat ini belum ada kegiatan ya. Pengajian berikutnya pukul {jam_berikutnya}.",
+  suara_tak_dikenal: "Maaf, wajahnya belum dikenali. Silakan ke petugas.",
+  suara_sudah_absen: "Sudah absen tadi ya.",
+  suara_gagal: "Maaf, belum terbaca. Silakan ulangi.",
   koordinat: "-7.8166,112.0114",
 };
 
@@ -89,6 +98,17 @@ function tentukanSapaan(jenisKelamin: "L" | "P", usia: number | null, kategoriUs
   if (kelompok === "anak") return "Dek";
   if (kelompok === "tua") return jenisKelamin === "L" ? "Pak" : "Bu";
   return jenisKelamin === "L" ? "Mas" : "Mbak";
+}
+
+/** Kalimat yang memuat {sapaan} dan {nama} tapi tidak memuat {doa}. */
+function ucapkanBernama(
+  template: string,
+  nama: string,
+  jenisKelamin: "L" | "P",
+  usia: number | null,
+  kategoriUsia: string
+) {
+  ucapkan(isiTemplate(template, { sapaan: tentukanSapaan(jenisKelamin, usia, kategoriUsia), nama }));
 }
 
 function ucapkanTerimaKasih(
@@ -171,6 +191,11 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
   const scanTerakhirRef = useRef(0);
   const namaOverlayRef = useRef<{ nama: string; sampaiMs: number } | null>(null);
   const disapaRef = useRef(new Map<number, number>());
+  // Peta sendiri, bukan ikut disapaRef: kalau satu peta dipakai bersama, orang yang
+  // disapa saat idle 18:59 lalu absen 19:00:30 absennya tercatat tanpa suara apa pun
+  // -- justru ucapan yang paling perlu terdengar.
+  const diabsenRef = useRef(new Map<number, number>());
+  const pesanRef = useRef(0);
   // Dibaca di dalam scan(); pakai ref supaya polling jadwal tiap menit tidak
   // memasang ulang loop deteksi.
   const jadwalRef = useRef<Jadwal | null>(null);
@@ -324,13 +349,23 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
           kategori_usia: string;
         };
         kegiatan: { id: number; nama: string } | null;
+        baru?: boolean;
       }>(kegiatanId ? `/kegiatans/${kegiatanId}/absensi-wajah` : "/absensi-wajah", { method: "POST", body });
       const { id, nama_lengkap, nama_panggilan, jenis_kelamin, usia, kategori_usia } = res.data.jamaah;
       const nama = nama_panggilan || nama_lengkap;
       namaOverlayRef.current = { nama, sampaiMs: Date.now() + OVERLAY_NAMA_MS };
 
       if (res.data.kegiatan) {
-        ucapkanTerimaKasih(suaraRef.current.suara_absen, nama, jenis_kelamin, usia, kategori_usia);
+        // Sapaan absen juga dijeda per orang: tanpa ini, yang berdiri di depan kamera
+        // diulangi terus. Absen pertamanya tetap selalu terdengar karena petanya kosong.
+        if (Date.now() - (diabsenRef.current.get(id) ?? 0) >= JEDA_SAPA_MS) {
+          diabsenRef.current.set(id, Date.now());
+          if (res.data.baru) {
+            ucapkanTerimaKasih(suaraRef.current.suara_absen, nama, jenis_kelamin, usia, kategori_usia);
+          } else {
+            ucapkanBernama(suaraRef.current.suara_sudah_absen, nama, jenis_kelamin, usia, kategori_usia);
+          }
+        }
         setRiwayat((r) => [{ ok: true, pesan: res.message, nama: nama_lengkap, waktu }, ...r].slice(0, 20));
       } else if (Date.now() - (disapaRef.current.get(id) ?? 0) >= JEDA_SAPA_MS) {
         // idle: sapa sekali, jangan masuk riwayat — tidak ada absensi yang tercatat
@@ -350,6 +385,11 @@ export default function AbsenWajahKiosk({ kegiatanId }: { kegiatanId?: string })
       } else if (err instanceof ApiError && err.status === 404 && !adaKegiatanRef.current) {
         // wajah asing saat idle — kiosk diam saja, jangan penuhi riwayat
       } else {
+        if (Date.now() - pesanRef.current >= JEDA_PESAN_MS) {
+          pesanRef.current = Date.now();
+          const asing = err instanceof ApiError && err.status === 404;
+          ucapkan(asing ? suaraRef.current.suara_tak_dikenal : suaraRef.current.suara_gagal);
+        }
         setRiwayat((r) => [{ ok: false, pesan: err instanceof Error ? err.message : "Gagal", waktu }, ...r].slice(0, 20));
       }
     } finally {
