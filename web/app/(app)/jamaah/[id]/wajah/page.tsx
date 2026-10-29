@@ -19,14 +19,25 @@ const MAKS_SISI = 1280;
 
 /** Batas kirim backend. Di atas ini tidak ada gunanya dicoba. */
 const MAKS_KIRIM = 15 * 1024 * 1024;
+/**
+ * Ditulis sebelum pemilih galeri dibuka, dihapus begitu berkasnya sampai ke halaman.
+ * Kalau masih ada saat halaman dimuat, berarti halamannya mati di antara keduanya --
+ * dan itu tidak meninggalkan jejak lain: tidak ada galat, tidak ada permintaan ke
+ * server, cuma halaman kosong yang terbaca sebagai "uploadnya rusak".
+ */
+const TANDA_GALERI = "wajah-galeri-dibuka";
 
 /**
  * Pengecilan foto, dijalankan di pekerja terpisah.
  *
  * Membuka foto 50 MP perlu ratusan megabyte, dan di HP itu bisa mematikan seluruh
  * halaman — layar hitam, alamat kosong, tidak ada pesan apa pun, dan tidak ada satu pun
- * permintaan yang terkirim. Di pekerja terpisah, yang mati pekerjanya; halamannya hidup
- * dan bisa melapor.
+ * permintaan yang terkirim. Pekerja terpisah memindahkan kerja beratnya dari utas utama,
+ * jadi tombol dan tulisannya tetap hidup selama gambar dibongkar.
+ *
+ * Yang TIDAK dilakukannya: melindungi halaman dari kehabisan memori. Dedicated worker
+ * berbagi proses renderer dengan halamannya di Chrome, jadi pekerja yang kehabisan memori
+ * tetap membunuh tabnya. Jangan andalkan ini sebagai pengaman.
  *
  * Ditulis sebagai teks lalu dijalankan dari Blob, bukan berkas tersendiri: tidak perlu
  * menyentuh setelan pembangun proyek demi dua puluh baris.
@@ -115,6 +126,7 @@ export default function WajahPage() {
   const [antre, setAntre] = useState<{ ke: number; dari: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [kamera, setKamera] = useState(false);
+  const [galeriTerputus, setGaleriTerputus] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const {
     daftar: daftarKamera,
@@ -132,6 +144,21 @@ export default function WajahPage() {
   }, [id]);
 
   useEffect(reload, [reload]);
+
+  useEffect(() => {
+    // Ditunda satu putaran, sama seperti pembacaan alamat di halaman Data Jamaah:
+    // sessionStorage tidak ada saat render di server, jadi tidak bisa dibaca lebih awal.
+    Promise.resolve().then(() => {
+      try {
+        if (sessionStorage.getItem(TANDA_GALERI)) {
+          sessionStorage.removeItem(TANDA_GALERI);
+          setGaleriTerputus(true);
+        }
+      } catch {
+        // penyimpanan diblokir -- penjelasannya hilang, sisanya tetap jalan
+      }
+    });
+  }, []);
 
   /**
    * Keluar di tengah pengiriman membuang foto yang belum terkirim tanpa jejak. Dua jalur
@@ -182,6 +209,12 @@ export default function WajahPage() {
   function unggah(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
+    // Sampai di sini berarti halamannya selamat dari pemilih galeri.
+    try {
+      sessionStorage.removeItem(TANDA_GALERI);
+    } catch {
+      // diabaikan, sama seperti saat menulisnya
+    }
     if (files.length) kirim(files);
   }
 
@@ -269,11 +302,21 @@ export default function WajahPage() {
         {total < 3 && ` (kurang ${3 - total})`}.
       </p>
 
+      {galeriTerputus && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>Halaman ini sempat ditutup HP waktu memilih foto</strong>, jadi fotonya
+          tidak jadi terkirim. Itu bukan kerusakan aplikasi: galeri yang penuh foto besar
+          membuat Android membuang halaman yang sedang di belakang. Pakai{" "}
+          <strong>Pakai Kamera</strong> — memotret di sini tidak pernah meninggalkan halaman.
+        </p>
+      )}
+
       {/* Memilih dari galeri membuat HP meninggalkan halaman ini, dan foto 10 MB-an bikin
           sistem membuang halamannya diam-diam. Kamera dalam halaman tidak punya risiko itu. */}
       <p className="rounded-lg bg-gray-50 p-2 text-xs text-gray-600">
-        Foto dari galeri HP sering berukuran besar dan bisa membuat halaman tertutup sendiri.
-        Paling aman pakai <strong>Pakai Kamera</strong> — memotret langsung di sini.
+        Paling aman pakai <strong>Pakai Kamera</strong> — memotret langsung di sini, tanpa
+        meninggalkan halaman. Galeri tetap bisa, tapi foto 10 MB-an kadang membuat HP
+        menutup halaman ini sendiri sebelum fotonya sempat terkirim.
       </p>
 
       {/* Tulisan kecil di tombol tidak cukup: petugas memotret sambil berdiri, dan tiga
@@ -331,10 +374,22 @@ export default function WajahPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-block cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+        {/* Kamera didahulukan, dan itu bukan soal selera: memotret di sini tidak pernah
+            meninggalkan halaman, sedangkan pemilih galeri memindahkan Chrome ke latar.
+            Pada 29 Oktober 2026 Android membunuh tabnya di sana -- tiga foto 11 MB
+            tercentang, tab hilang, nol permintaan sampai ke server. */}
+        <button
+          onClick={() => setKamera((k) => !k)}
+          disabled={uploading}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          {kamera ? "Tutup Kamera" : "Pakai Kamera"}
+        </button>
+
+        <label className="inline-block cursor-pointer rounded-lg border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50">
           {uploading
             ? `Memproses${antre && antre.dari > 1 ? ` ${antre.ke}/${antre.dari}` : ""}...`
-            : "+ Ambil / Pilih Foto"}
+            : "Pilih dari Galeri"}
           <input
             type="file"
             accept="image/*"
@@ -342,17 +397,15 @@ export default function WajahPage() {
             className="hidden"
             disabled={uploading}
             onChange={unggah}
+            onClick={() => {
+              try {
+                sessionStorage.setItem(TANDA_GALERI, String(Date.now()));
+              } catch {
+                // mode penyamaran atau penyimpanan diblokir -- cuma kehilangan penjelasannya
+              }
+            }}
           />
         </label>
-
-        {/* Kamera dalam halaman: preview-nya tetap menyala antar jepretan, jadi
-            beberapa pose bisa diambil tanpa buka-tutup pemilih berkas. */}
-        <button
-          onClick={() => setKamera((k) => !k)}
-          className="rounded-lg border border-emerald-600 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
-        >
-          {kamera ? "Tutup Kamera" : "Pakai Kamera"}
-        </button>
       </div>
 
       {kamera && (
